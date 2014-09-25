@@ -13,60 +13,60 @@ class ParseException(Exception):
     def __str__( self ):
         return "line: %d, message: %s" % (self.__line, self.__message)
 
-class ObjectContainer:
-    """ Interface for grouping objects. Contains a list of grouped objects """
-
-    class __Entry:
-        def __init__(self, container):
-            self.tokens = [container]
-
-    def __init__(self):
-        # list of ObjectContainer Entries, 
-        self._tokens = [self.__Entry(self)]
-
-    def __and__(self, right):
-        """
-        Overrides the bitwise AND operator and merges two ObjectContainer
-        objects into the first one
-        """
-        # assume one sub-group per ObjectContainer
-        self._tokens[0].tokens = self._tokens[0].tokens + right._tokens[0].tokens
-        return self
-
-    def _get_tokens(self, group_num):
-        return self._tokens[group_num].tokens
-
-class TokenMatcher(ObjectContainer):
+class TokenMatcher():
     """ Interface for extracting tokens from a text """
 
-    def _get_name(self):
-        return None
+    def _get_tokens(self):
+        raise NotImplementedError("Should have implemented")
 
     def matchToken(self, input_string):
         """ Checks whether input_string is a valid token """
         if input_string.endswith('\n'):
             return None
-        for token in self._get_tokens(0):
-            if re.match('^' + token._get_name() + '$', input_string):
+        for token in self._get_tokens():
+            if re.match('^' + token.get_pattern() + '$', input_string):
                 return token
         return None
 
-class Token(TokenMatcher):
+class TokenContainer(TokenMatcher):
+    """ Interface for grouping tokens. Contains a list of grouped tokens """
+
+    def __init__(self, obj):
+        if not isinstance(obj, Token):
+            raise TypeError("right argument must be Token")
+        self.__tokens = [obj]
+
+    def __and__(self, right):
+        """
+        Overrides the bitwise AND operator and merges two TokenContainer
+        objects or a TokenContainer object and a token into the first one.
+        """
+        if isinstance(right, TokenContainer):
+            self.__tokens = self.__tokens + right.__tokens
+        elif isinstance(right, Token):
+            self.__tokens = self.__tokens + [right]
+        else:
+            raise TypeError("right argument must be Token or TokenContainer")
+        return self
+
+    def _get_tokens(self):
+        return self.__tokens
+
+class Token():
     """ Base class for all tokens in the grammar """
 
-    def __init__(self, name):
-        TokenMatcher.__init__(self)
-        self.__name = name
+    def __init__(self, pattern):
+        self.__pattern = pattern
         self._ignore = False
 
-    def _get_name(self):
-        return self.__name
+    def get_pattern(self):
+        return self.__pattern
 
     def isIgnore(self):
         return self._ignore
 
     def __and__(self, right):
-        return ObjectContainer(self) + right
+        return TokenContainer(self) & right
 
 class Keyword(Token):
     """ Keyword token """
@@ -82,8 +82,8 @@ class Operator(Token):
 
 class Ignore(Token):
     """ Valid token of no interest, should be ignored in parsing """
-    def __init__(self, name):
-        Token.__init__(self, name)
+    def __init__(self, pattern):
+        Token.__init__(self, pattern)
         self._ignore = True
 
 class Lexer:
@@ -260,8 +260,6 @@ long factorial(int n)
 }
 
 """
-
-container = ObjectContainer()
 
 # obtain a list of all tokens present in the source
 lexer = Lexer(TOKENS)
