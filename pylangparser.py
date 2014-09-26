@@ -20,9 +20,9 @@
 
 # pylangparser - provides classes for parsing formal languages
 # in an easy way. There is a Lexer and a Parser. The lexer produces
-# list of tokens that the Parser uses to build the AST. The lexer
+# list of tokens that the Parser then uses to build the AST. The lexer
 # can also be used as a stand alone component.
-# The grammars are defined directly in the Python code. For details,
+# The grammars are defined directly into the Python code. For details,
 # check the unit tests and the examples.
 #
 # Note: the parser is under development and is not included in the
