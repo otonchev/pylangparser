@@ -270,7 +270,7 @@ class KeywordParser(TokenParser):
 
     def __call__(self, tokens, pos):
         if pos >= len(tokens):
-            raise IndexError("too big position value")
+            return None
         (token, instance) = tokens[pos]
         if instance == self.__token:
             return ParserResult(token, pos + 1)
@@ -286,7 +286,7 @@ class OperatorParser(TokenParser):
 
     def __call__(self, tokens, pos):
         if pos >= len(tokens):
-            raise IndexError("too big position value")
+            return None
         (token, instance) = tokens[pos]
         if instance == self.__token:
             return ParserResult(token, pos + 1)
@@ -297,11 +297,14 @@ class SymbolsParser(TokenParser):
     This parser consumes Symbols from the grammar.
     """
 
+    def __init__(self, instance):
+        self.__instance=instance
+
     def __call__(self, tokens, pos):
         if pos >= len(tokens):
-            raise IndexError("too big position value")
+            return None
         (token, instance) = tokens[pos]
-        if isinstance(instance, Symbols):
+        if instance == self.__instance:
             return ParserResult(token, pos + 1)
         return None
 
@@ -317,7 +320,7 @@ class Optional(TokenParser):
 
     def __call__(self, tokens, pos):
         if pos >= len(tokens):
-            raise IndexError("too big position value")
+            return None
         result = self.__parser(tokens, pos)
         if result:
             return result
@@ -335,17 +338,43 @@ class ZeroOrMore(TokenParser):
 
     def __call__(self, tokens, pos):
         if pos >= len(tokens):
-            raise IndexError("too big position value")
+            return None
         results = None
-        while True:
+        while pos < len(tokens):
             result = self.__parser(tokens, pos)
             if not result:
                 break
             pos = result.get_position()
             if not results:
-                results = (result)
+                results = (result,)
             else:
-                results = results + result
+                results = results + (result,)
+        return ParserResult(results, pos)
+
+class Repeat(TokenParser):
+    """
+    This class allows a TokenParser to appear multiple times. The parser
+    will be applied multiple times until it fails to consume token.
+    """
+
+    def __init__(self, parser):
+        self.__parser = parser
+
+    def __call__(self, tokens, pos):
+        if pos >= len(tokens):
+            return None
+        results = None
+        while pos < len(tokens):
+            result = self.__parser(tokens, pos)
+            if not result:
+                break
+            pos = result.get_position()
+            if not results:
+                results = (result,)
+            else:
+                results = results + (result,)
+        if not results:
+            return None
         return ParserResult(results, pos)
 
 class AllTokensConsumed(TokenParser):
@@ -357,11 +386,13 @@ class AllTokensConsumed(TokenParser):
 
     def __call__(self, tokens, pos):
         if pos >= len(tokens):
-            raise IndexError("too big position value")
+            return None
         result = self.__parser(tokens, pos)
+        if not result:
+            return None
         pos = result.get_position()
         if pos != len(tokens):
-           return None
+            return None
         return result
 
 class RecursiveParser(TokenParser):
@@ -377,7 +408,7 @@ class RecursiveParser(TokenParser):
 
     def __call__(self, tokens, pos):
         if pos >= len(tokens):
-            raise IndexError("too big position value")
+            return None
         parser = self.__get_parser()
         return parser(tokens, pos)
 
@@ -499,13 +530,13 @@ class ParseTests(unittest.TestCase):
         tokens = lexer.parseTokens(source)
 
         parser = AllTokensConsumed(KeywordParser(self.RETURN) & \
-            SymbolsParser() & OperatorParser(self.COLON))
+            SymbolsParser(self.INT_IDENTIFIER) & OperatorParser(self.COLON))
         result = parser(tokens, 0)
         self.assertTrue(result)
         #print(result)
 
         parser = (KeywordParser(self.RETURN) | OperatorParser(self.FOR)) & \
-            SymbolsParser()
+            SymbolsParser(self.INT_IDENTIFIER)
         result = parser(tokens, 0)
         self.assertTrue(result)
         #print(result)
@@ -542,13 +573,36 @@ class ParseTests(unittest.TestCase):
             return parser
 
         parser = KeywordParser(self.IF) & OperatorParser(self.LBRACKET) & \
-            SymbolsParser() & OperatorParser(self.RBRACKET) & \
+            SymbolsParser(self.INT_IDENTIFIER) & OperatorParser(self.RBRACKET) & \
             OperatorParser(self.LBRACE) & Optional(RecursiveParser(return_parser)) & \
             OperatorParser(self.RBRACE)
         
         result = parser(tokens, 0)
         self.assertTrue(result)
         #print(result)
+
+    def testRecursiveParser2(self):
+
+        # our source code
+        source = r"""
+
+        a, a, a, a
+
+        """
+
+        # obtain a list of all tokens present in the source
+        lexer = Lexer(self.TOKENS)
+        tokens = lexer.parseTokens(source)
+
+        def return_parser():
+            return parser
+
+        parser = AllTokensConsumed(Repeat((KeywordParser(self.COMMA) & \
+            RecursiveParser(return_parser)) | SymbolsParser(self.IDENTIFIER)))
+
+        result = parser(tokens, 0)
+        self.assertTrue(result)
+        print(result)
 
 def main():
     unittest.main()
