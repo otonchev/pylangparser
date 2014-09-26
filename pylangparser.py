@@ -25,8 +25,8 @@
 # The grammars are defined directly into the Python code. For details,
 # check the unit tests and the examples.
 #
-# Note: the parser is under development and is not included in the
-# source yet.
+# Note: the Parser is under development and is not fully committed
+# yet. However, the Lexer is fully functional.
 #
 
 import re
@@ -176,6 +176,103 @@ class Lexer:
 
         return tokens
 
+class ResultParser:
+    """
+    This class is ised by TokenParser's to generate parsers
+    of token lists returned by the Lexer
+    """
+    def __init__(self, token, pos):
+        self.__token = token
+        self.__position = pos
+
+    def __repr__(self):
+        return 'ResultParser (%s, %d)' % (self.__token, self.__position)
+
+    def get_position(self):
+        """ get the position of the next token in the list """
+        return self.__position
+
+    def get_token(self):
+        """ get the token of this ResultParser """
+        return self.__token
+
+class TokenParser:
+
+    def __call__(self, tokens, pos):
+        raise NotImplementedError("Method should be implemented")
+
+    def __and__(self, right):
+        return CombineParsers(self, right)
+
+    def __or__(self, right):
+        return SelectParsers(self, right)
+
+class CombineParsers(TokenParser):
+
+    def __init__(self, first, second):
+        self.first = first
+        self.second = second
+
+    def __call__(self, tokens, pos):
+        first_res = self.first(tokens, pos)
+        if first_res:
+            second_res = self.second(tokens, first_res.get_position())
+            if second_res:
+                return ResultParser((first_res, second_res), \
+                    second_res.get_position())
+        return None
+
+class SelectParsers(TokenParser):
+
+    def __init__(self, first, second):
+        self.first = first
+        self.second = second
+
+    def __call__(self, tokens, pos):
+        res = self.first(tokens, pos)
+        if res:
+            return ResultParser(res, res.get_position())
+        res = self.second(tokens, pos)
+        if res:
+            return ResultParser(res, res.get_position())
+        return None
+
+class KeywordParser(TokenParser):
+
+    def __init__(self, token):
+        self.__token = token
+
+    def __call__(self, tokens, pos):
+        if pos >= len(tokens):
+            raise IndexError("too big position value")
+        (token, instance) = tokens[pos]
+        if instance == self.__token:
+            return ResultParser(token, pos + 1)
+        return None
+
+class OperatorParser(TokenParser):
+
+    def __init__(self, token):
+        self.__token = token
+
+    def __call__(self, tokens, pos):
+        if pos >= len(tokens):
+            raise IndexError("too big position value")
+        (token, instance) = tokens[pos]
+        if instance == self.__token:
+            return ResultParser(token, pos + 1)
+        return None
+
+class SymbolsParser(TokenParser):
+
+    def __call__(self, tokens, pos):
+        if pos >= len(tokens):
+            raise IndexError("too big position value")
+        (token, instance) = tokens[pos]
+        if isinstance(instance, Symbols):
+            return ResultParser(token, pos + 1)
+        return None
+
 
 class ParseTests(unittest.TestCase):
 
@@ -224,7 +321,7 @@ class ParseTests(unittest.TestCase):
             self.IGNORES
 
 	# our source code
-	self.source = r"""
+	self.source_lexer = r"""
 
         #include <stdio.h>
 
@@ -244,6 +341,12 @@ class ParseTests(unittest.TestCase):
 
 	"""
 
+        self.source_parser = r"""
+
+        return 5;
+
+        """
+
         super(ParseTests, self).__init__(*args, **kwargs)
 
     def __checkEntry(self, expected_token, expected_instance, touple):
@@ -254,7 +357,7 @@ class ParseTests(unittest.TestCase):
     def testLexer(self):
         # obtain a list of all tokens present in the source
         lexer = Lexer(self.TOKENS)
-        tokens = lexer.parseTokens(self.source)
+        tokens = lexer.parseTokens(self.source_lexer)
 
         self.__checkEntry("long", self.IDENTIFIER, tokens[0])
         self.__checkEntry("factorial", self.IDENTIFIER, tokens[1])
@@ -276,6 +379,23 @@ class ParseTests(unittest.TestCase):
         self.__checkEntry("result", self.IDENTIFIER, tokens[35])
         self.__checkEntry(";", self.COLON, tokens[36])
         self.__checkEntry("}", self.RBRACE, tokens[37])
+
+    def testParser(self):
+        # obtain a list of all tokens present in the source
+        lexer = Lexer(self.TOKENS)
+        tokens = lexer.parseTokens(self.source_parser)
+
+        parser = KeywordParser(self.RETURN) & SymbolsParser() & \
+            OperatorParser(self.COLON)
+        result = parser(tokens, 0)
+        self.assertTrue(result)
+        #print(result)
+
+        parser = (KeywordParser(self.RETURN) | OperatorParser(self.FOR)) & \
+            SymbolsParser()
+        result = parser(tokens, 0)
+        self.assertTrue(result)
+        #print(result)
 
 def main():
     unittest.main()
