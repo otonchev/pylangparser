@@ -1,3 +1,9 @@
+# Example usage of the Lexer class. The test parses a C program
+# and builds a list of tokens.
+#
+# Copyright, 2014, Ognyan Tonchev (otonchev at gmail com)
+#
+
 import sys
 sys.path.append("..")
 
