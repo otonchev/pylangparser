@@ -176,27 +176,36 @@ class Lexer:
 
         return tokens
 
-class ResultParser:
+class ParserResult:
     """
-    This class is ised by TokenParser's to generate parsers
-    of token lists returned by the Lexer
+    TokenParser's use this class to accumulate result from parsing the
+    token list returned by the Lexer
     """
     def __init__(self, token, pos):
         self.__token = token
         self.__position = pos
 
     def __repr__(self):
-        return 'ResultParser (%s, %d)' % (self.__token, self.__position)
+        return '(%s, %d)' % (self.__token, self.__position)
 
     def get_position(self):
         """ get the position of the next token in the list """
         return self.__position
 
     def get_token(self):
-        """ get the token of this ResultParser """
+        """ get the token of this ParserResult """
         return self.__token
 
 class TokenParser:
+    """
+    Base class for all token parsers used to build the AST.
+    The idea is that each parser consumes just one token from the
+    token list. Parsers can be combined together in order to parse
+    sequence of tokens.
+    Then the group of parsers can be run onto the token sequence,
+    note the __call__ method below.
+    The result from the parsing is accumulated in a ParserResult.
+    """
 
     def __call__(self, tokens, pos):
         raise NotImplementedError("Method should be implemented")
@@ -205,9 +214,14 @@ class TokenParser:
         return CombineParsers(self, right)
 
     def __or__(self, right):
-        return SelectParsers(self, right)
+        return SelectParser(self, right)
 
 class CombineParsers(TokenParser):
+    """
+    This class is used to combine two token parsers using the AND(&)
+    operator. Both parsers should succeed consuming tokens from the
+    token list in order for the whole combination to succeed.
+    """
 
     def __init__(self, first, second):
         self.first = first
@@ -218,11 +232,16 @@ class CombineParsers(TokenParser):
         if first_res:
             second_res = self.second(tokens, first_res.get_position())
             if second_res:
-                return ResultParser((first_res, second_res), \
+                return ParserResult((first_res, second_res), \
                     second_res.get_position())
         return None
 
-class SelectParsers(TokenParser):
+class SelectParser(TokenParser):
+    """
+    This class is used to combine two token parsers using the OR(|)
+    bitwise operator. One of the parsers should succeed consuming a token
+    from the token list in order for the whole combination to succeed.
+    """
 
     def __init__(self, first, second):
         self.first = first
@@ -231,13 +250,16 @@ class SelectParsers(TokenParser):
     def __call__(self, tokens, pos):
         res = self.first(tokens, pos)
         if res:
-            return ResultParser(res, res.get_position())
+            return ParserResult(res, res.get_position())
         res = self.second(tokens, pos)
         if res:
-            return ResultParser(res, res.get_position())
+            return ParserResult(res, res.get_position())
         return None
 
 class KeywordParser(TokenParser):
+    """
+    This parser consumes a Keyword from the grammar.
+    """
 
     def __init__(self, token):
         self.__token = token
@@ -247,10 +269,13 @@ class KeywordParser(TokenParser):
             raise IndexError("too big position value")
         (token, instance) = tokens[pos]
         if instance == self.__token:
-            return ResultParser(token, pos + 1)
+            return ParserResult(token, pos + 1)
         return None
 
 class OperatorParser(TokenParser):
+    """
+    This parser consumes an Operator from the grammar.
+    """
 
     def __init__(self, token):
         self.__token = token
@@ -260,21 +285,68 @@ class OperatorParser(TokenParser):
             raise IndexError("too big position value")
         (token, instance) = tokens[pos]
         if instance == self.__token:
-            return ResultParser(token, pos + 1)
+            return ParserResult(token, pos + 1)
         return None
 
 class SymbolsParser(TokenParser):
+    """
+    This parser consumes Symbols from the grammar.
+    """
 
     def __call__(self, tokens, pos):
         if pos >= len(tokens):
             raise IndexError("too big position value")
         (token, instance) = tokens[pos]
         if isinstance(instance, Symbols):
-            return ResultParser(token, pos + 1)
+            return ParserResult(token, pos + 1)
         return None
+
+class Optional(TokenParser):
+    """
+    This class marks a TokenParser to be optional. This means
+    that the parser will not fail even if it does not find a token
+    to consume.
+    """
+
+    def __init__(self, parser):
+        self.__parser = parser
+
+    def __call__(self, tokens, pos):
+        if pos >= len(tokens):
+            raise IndexError("too big position value")
+        result = self.__parser(tokens, pos)
+        if result:
+            return result
+        return ParserResult(None, pos)
+
+class ZeroOrMore(TokenParser):
+    """
+    This class marks a TokenParser to be optional and appear multiple
+    times. The parser will be applied multiple times until it fails to
+    consume token.
+    """
+
+    def __init__(self, parser):
+        self.__parser = parser
+
+    def __call__(self, tokens, pos):
+        if pos >= len(tokens):
+            raise IndexError("too big position value")
+        results = None
+        while True:
+            result = self.__parser(tokens, pos)
+            if not result:
+                break
+            pos = result.get_position()
+            if not results:
+                results = (result)
+            else:
+                results = results + result
+        return ParserResult(results, pos)
 
 
 class ParseTests(unittest.TestCase):
+    """ Follow the unit tests for the Lexer and the Parser """
 
     def __init__(self, *args, **kwargs):
 
@@ -389,13 +461,23 @@ class ParseTests(unittest.TestCase):
             OperatorParser(self.COLON)
         result = parser(tokens, 0)
         self.assertTrue(result)
-        #print(result)
+        print(result)
 
         parser = (KeywordParser(self.RETURN) | OperatorParser(self.FOR)) & \
             SymbolsParser()
         result = parser(tokens, 0)
         self.assertTrue(result)
-        #print(result)
+        print(result)
+
+        parser = Optional(KeywordParser(self.RETURN))
+        result = parser(tokens, 0)
+        self.assertTrue(result)
+        print(result)
+
+        parser = ZeroOrMore(KeywordParser(self.RETURN))
+        result = parser(tokens, 0)
+        self.assertTrue(result)
+        print(result)
 
 def main():
     unittest.main()
