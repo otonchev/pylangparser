@@ -360,6 +360,23 @@ class AllTokensConsumed(TokenParser):
            return None
         return result
 
+class RecursiveParser(TokenParser):
+    """
+    This class is used for parsing recursive grammars.
+    Example:
+
+    ifstmt = if + ( + cond + ) + { + ifstmt  + }
+    """
+
+    def __init__(self, get_parser_func):
+        self.__get_parser = get_parser_func
+
+    def __call__(self, tokens, pos):
+        if pos >= len(tokens):
+            raise IndexError("too big position value")
+        parser = self.__get_parser()
+        return parser(tokens, pos)
+
 
 class ParseTests(unittest.TestCase):
     """ Follow the unit tests for the Lexer and the Parser """
@@ -506,6 +523,8 @@ class ParseTests(unittest.TestCase):
 
         if (5) {
           if (5) {
+            if (5) {
+            }
           }
         }
 
@@ -515,12 +534,17 @@ class ParseTests(unittest.TestCase):
         lexer = Lexer(self.TOKENS)
         tokens = lexer.parseTokens(source)
 
+        def return_parser():
+            return parser
+
         parser = KeywordParser(self.IF) & OperatorParser(self.LBRACKET) & \
             SymbolsParser() & OperatorParser(self.RBRACKET) & \
-            OperatorParser(self.LBRACE)
+            OperatorParser(self.LBRACE) & Optional(RecursiveParser(return_parser)) & \
+            OperatorParser(self.RBRACE)
         
         result = parser(tokens, 0)
         self.assertTrue(result)
+        #print(result)
 
 def main():
     unittest.main()
