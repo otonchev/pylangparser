@@ -344,6 +344,22 @@ class ZeroOrMore(TokenParser):
                 results = results + result
         return ParserResult(results, pos)
 
+class AllTokensConsumed(TokenParser):
+    """
+    This class makes sure that all input tokens are consumed.
+    """
+    def __init__(self, parser):
+        self.__parser = parser
+
+    def __call__(self, tokens, pos):
+        if pos >= len(tokens):
+            raise IndexError("too big position value")
+        result = self.__parser(tokens, pos)
+        pos = result.get_position()
+        if pos != len(tokens):
+           return None
+        return result
+
 
 class ParseTests(unittest.TestCase):
     """ Follow the unit tests for the Lexer and the Parser """
@@ -353,6 +369,7 @@ class ParseTests(unittest.TestCase):
         # define all tokens in the language
         self.FOR = Keyword(r'for')
         self.RETURN = Keyword(r'return')
+        self.IF = Keyword(r'if')
 
 	self.COMMA = Operator(r',')
 	self.COLON = Operator(r';')
@@ -379,7 +396,7 @@ class ParseTests(unittest.TestCase):
         self.IGNORES = self.C_STYLE_COMMENT & self.CPP_STYLE_COMMENT & \
             self.MACROS & self.IGNORE_CHARS
 
-        self.KEYWORDS = self.FOR & self.RETURN
+        self.KEYWORDS = self.FOR & self.RETURN & self.IF
 
         self.OPERATORS = self.COMMA & self.COLON & self.ASSIGNMENT & \
             self.LBRACKET & self.RBRACKET & self.LBRACE & self.RBRACE & \
@@ -392,33 +409,6 @@ class ParseTests(unittest.TestCase):
         self.TOKENS = self.KEYWORDS & self.OPERATORS & self.IDENTIFIERS & \
             self.IGNORES
 
-	# our source code
-	self.source_lexer = r"""
-
-        #include <stdio.h>
-
-        // alabala
-
-	/* factorial */
-	long factorial(int n)
-	{
-	  int c;
-	  long result = 1;
-	 
-	  for (c = 1; c <= n; c++)
-	    result = result * c;
-	 
-	  return result;
-	}
-
-	"""
-
-        self.source_parser = r"""
-
-        return 5;
-
-        """
-
         super(ParseTests, self).__init__(*args, **kwargs)
 
     def __checkEntry(self, expected_token, expected_instance, touple):
@@ -427,9 +417,31 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(expected_instance, instance)
 
     def testLexer(self):
+
+        # our source code
+        source = r"""
+
+        #include <stdio.h>
+
+        // alabala
+
+        /* factorial */
+        long factorial(int n)
+        {
+          int c;
+          long result = 1;
+         
+          for (c = 1; c <= n; c++)
+            result = result * c;
+         
+          return result;
+        }
+
+        """
+
         # obtain a list of all tokens present in the source
         lexer = Lexer(self.TOKENS)
-        tokens = lexer.parseTokens(self.source_lexer)
+        tokens = lexer.parseTokens(source)
 
         self.__checkEntry("long", self.IDENTIFIER, tokens[0])
         self.__checkEntry("factorial", self.IDENTIFIER, tokens[1])
@@ -453,31 +465,62 @@ class ParseTests(unittest.TestCase):
         self.__checkEntry("}", self.RBRACE, tokens[37])
 
     def testParser(self):
+
+        # our source code
+        source = r"""
+
+        return 5;
+
+        """
+
         # obtain a list of all tokens present in the source
         lexer = Lexer(self.TOKENS)
-        tokens = lexer.parseTokens(self.source_parser)
+        tokens = lexer.parseTokens(source)
 
-        parser = KeywordParser(self.RETURN) & SymbolsParser() & \
-            OperatorParser(self.COLON)
+        parser = AllTokensConsumed(KeywordParser(self.RETURN) & \
+            SymbolsParser() & OperatorParser(self.COLON))
         result = parser(tokens, 0)
         self.assertTrue(result)
-        print(result)
+        #print(result)
 
         parser = (KeywordParser(self.RETURN) | OperatorParser(self.FOR)) & \
             SymbolsParser()
         result = parser(tokens, 0)
         self.assertTrue(result)
-        print(result)
+        #print(result)
 
         parser = Optional(KeywordParser(self.RETURN))
         result = parser(tokens, 0)
         self.assertTrue(result)
-        print(result)
+        #print(result)
 
         parser = ZeroOrMore(KeywordParser(self.RETURN))
         result = parser(tokens, 0)
         self.assertTrue(result)
-        print(result)
+        #print(result)
+
+    def testRecursiveParser(self):
+
+        # our source code
+        source = r"""
+
+        if (5) {
+          if (5) {
+          }
+        }
+
+        """
+
+        # obtain a list of all tokens present in the source
+        lexer = Lexer(self.TOKENS)
+        tokens = lexer.parseTokens(source)
+
+        parser = KeywordParser(self.IF) & OperatorParser(self.LBRACKET) & \
+            SymbolsParser() & OperatorParser(self.RBRACKET) & \
+            OperatorParser(self.LBRACE)
+        
+        result = parser(tokens, 0)
+        self.assertTrue(result)
 
 def main():
     unittest.main()
