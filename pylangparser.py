@@ -29,6 +29,10 @@
 # yet. However, the Lexer is fully functional.
 #
 
+__version__ = "0.1"
+__author__ = "Ognyan Tonchev"
+__author_email__ = "otonchev@gmail.com"
+
 import re
 import unittest
 
