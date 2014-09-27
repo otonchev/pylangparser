@@ -58,7 +58,12 @@ class TokenMatcher():
     def matchToken(self, input_string):
         """ Checks whether input_string is a valid token """
         for token in self._get_tokens():
-            if re.match('^' + token.get_pattern() + '$', input_string):
+
+            pattern = token.get_pattern()
+            if token.is_autoescape():
+                pattern = re.escape(pattern)
+
+            if re.match('^' + pattern + '$', input_string):
                 if not input_string.endswith('\n') or \
                     token.get_pattern().endswith('\\n'):
                     return token
@@ -94,12 +99,16 @@ class Token():
     def __init__(self, pattern):
         self.__pattern = pattern
         self._ignore = False
+        self._autoescape = False
 
     def get_pattern(self):
         return self.__pattern
 
-    def isIgnore(self):
+    def is_ignore(self):
         return self._ignore
+
+    def is_autoescape(self):
+        return self._autoescape
 
     def __and__(self, right):
         return TokenContainer(self) & right
@@ -114,6 +123,9 @@ class Symbols(Token):
 
 class Operator(Token):
     """ Operator token """
+    def __init__(self, pattern):
+        Token.__init__(self, pattern)
+        self._autoescape = True
     pass
 
 class Ignore(Token):
@@ -155,7 +167,7 @@ class Lexer:
                 match = result
             elif match:
                 # previous token matched, current didn't, take previous
-                if not match.isIgnore():
+                if not match.is_ignore():
                     tokens.append((input_text[start:start + index - 1], match))
                 start = start + index - 1
                 index = 0
@@ -173,7 +185,7 @@ class Lexer:
                 match = Ignore(r'\n')
 
         if match:
-            if not match.isIgnore():
+            if not match.is_ignore():
                 tokens.append((input_text[start:start + index - 1], match))
         else:
             raise ParseException(self.__findLineNumber(input_text, start))
@@ -401,6 +413,11 @@ class RecursiveParser(TokenParser):
     Example:
 
     ifstmt = if + ( + cond + ) + { + ifstmt  + }
+
+    Or:
+
+    expr = a | expr, a
+        a, a, a, a, a
     """
 
     def __init__(self, get_parser_func):
@@ -426,13 +443,13 @@ class ParseTests(unittest.TestCase):
 	self.COMMA = Operator(r',')
 	self.COLON = Operator(r';')
 	self.ASSIGNMENT = Operator(r'=')
-	self.LBRACKET = Operator(r'\(')
-	self.RBRACKET = Operator(r'\)')
+	self.LBRACKET = Operator(r'(')
+	self.RBRACKET = Operator(r')')
 	self.LBRACE = Operator(r'{')
 	self.RBRACE = Operator(r'}')
 	self.AND = Operator(r'&')
-	self.POINTER = Operator('\*')
-	self.PP = Operator(r'\+\+')
+	self.POINTER = Operator('*')
+	self.PP = Operator(r'++')
 	self.LE = Operator(r'<=')
 
 	self.IDENTIFIER = Symbols(r'[A-Za-z_]+[A-Za-z0-9_]*')
@@ -586,7 +603,7 @@ class ParseTests(unittest.TestCase):
         # our source code
         source = r"""
 
-        a, a, a, a
+        a, a, a, a =
 
         """
 
@@ -594,11 +611,17 @@ class ParseTests(unittest.TestCase):
         lexer = Lexer(self.TOKENS)
         tokens = lexer.parseTokens(source)
 
-        def return_parser():
-            return parser
+        print tokens
 
-        parser = AllTokensConsumed(Repeat((KeywordParser(self.COMMA) & \
-            RecursiveParser(return_parser)) | SymbolsParser(self.IDENTIFIER)))
+        assignment = OperatorParser(self.ASSIGNMENT)
+
+        def return_parser():
+            return recursive
+
+        recursive = Repeat ((KeywordParser(self.COMMA) & \
+            RecursiveParser(return_parser)) | SymbolsParser(self.IDENTIFIER))
+
+        parser = AllTokensConsumed(recursive & assignment)
 
         result = parser(tokens, 0)
         self.assertTrue(result)
