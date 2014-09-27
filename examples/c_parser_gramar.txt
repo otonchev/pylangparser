@@ -1,0 +1,510 @@
+#
+# The simplified Grammer is taken from the SableCC project:
+#    http://sourceforge.net/projects/sablecc/files/SableCC/
+#
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * This file is part of SimpleC.                                   *
+ * See the file "SimpleC-LICENSE" for Copyright information and    *
+ * the terms and conditions for copying, distribution and          *
+ * modification of SimpleC.                                        *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
+Package org.sablecc.simplec;
+
+Helpers
+
+    all = [0 .. 127];
+    digit = ['0' .. '9'];
+    nondigit = ['_' + [['a' .. 'z'] + ['A' .. 'Z']]];
+    digit_sequence = digit+;
+    fractional_constant = digit_sequence? '.' digit_sequence | digit_sequence '.';
+    sign = '+' | '-';
+    exponent_part = ('e' | 'E') sign? digit_sequence;
+    floating_suffix = 'f' | 'F' | 'l' | 'L';
+    simple_escape_sequence = '\' ''' | '\"' | '\?' | '\\' | 
+        '\a' | '\b' | '\f' | '\n' | '\r' | '\t' | '\v';
+    octal_digit = ['0' .. '7'];
+    octal_escape_sequence = '\' octal_digit octal_digit? octal_digit?;
+    hexadecimal_digit = [digit + [['a' .. 'f'] + ['A' .. 'F']]];
+    hexadecimal_escape_sequence = '\x' hexadecimal_digit+;
+    escape_sequence = simple_escape_sequence | octal_escape_sequence | hexadecimal_escape_sequence;
+    s_char = [all - ['"' + ['\' + [10 + 13]]]] | escape_sequence;
+    s_char_sequence = s_char+;
+    nonzero_digit = ['1' .. '9'];
+    decimal_constant = nonzero_digit digit*;
+    octal_constant = '0' octal_digit*;
+    hexadecimal_constant = '0' ('x' | 'X') hexadecimal_digit+;
+    unsigned_suffix = 'u' | 'U';
+    long_suffix = 'l' | 'L';
+    integer_suffix = unsigned_suffix long_suffix? | long_suffix unsigned_suffix?;
+    c_char = [all - [''' + ['\' + [10 + 13]]]] | escape_sequence;
+    c_char_sequence = c_char+;
+    cr = 13;
+    lf = 10;
+    not_star = [all - '*'];
+    not_star_slash = [not_star - '/'];
+    tab = 9;
+
+Tokens
+
+    dot = '.';
+    comma = ',';
+    colon = ':';
+    semicolon = ';';
+    l_par = '(';
+    r_par = ')';
+    l_bracket = '[';
+    r_bracket = ']';
+    l_brace = '{';
+    r_brace = '}';
+    star = '*';
+    div = '/';
+    mod = '%';
+    ampersand = '&';
+    plus = '+';
+    minus = '-';
+    caret = '^';
+    tilde = '~';
+    excl_mark = '!';
+    quest_mark = '?';
+    bar = '|';
+    ellipsis = '...';
+    equal = '=';
+    eq = '==';
+    neq = '!=';
+    lt = '<';
+    lteq = '<=';
+    gt = '>';
+    gteq = '>=';
+    arrow = '->';
+    plus_plus = '++';
+    minus_minus = '--';
+    shl = '<<';
+    shr = '>>';
+    ampersand_ampersand = '&&';
+    bar_bar = '||';
+    star_equal = '*=';
+    div_equal = '/=';
+    mod_equal = '%=';
+    plus_equal = '+=';
+    minus_equal = '-=';
+    shl_equal = '<<=';
+    shr_equal = '>>=';
+    ampersand_equal = '&=';
+    caret_equal = '^=';
+    bar_equal = '|=';
+    
+    case = 'case';
+    default = 'default';
+    if = 'if';
+    else = 'else';
+    switch = 'switch';
+    while = 'while';
+    do = 'do';
+    for = 'for';
+    goto = 'goto';
+    continue = 'continue';
+    break = 'break';
+    return = 'return';
+    typedef = 'typedef';
+    extern = 'extern';
+    static = 'static';
+    auto = 'auto';
+    register = 'register';
+    void = 'void';
+    char = 'char';
+    int = 'int';
+    short = 'short';
+    long = 'long';
+    float = 'float';
+    double = 'double';
+    signed = 'signed';
+    unsigned = 'unsigned';
+    struct = 'struct';
+    union = 'union';
+    enum = 'enum';
+    const = 'const';
+    volatile = 'volatile';
+    sizeof = 'sizeof';
+
+    identifier = nondigit (digit | nondigit)*;
+    floating_constant = fractional_constant exponent_part? floating_suffix? |
+        digit_sequence exponent_part floating_suffix?;
+    string_litteral = 'L'? '"' s_char_sequence? '"';
+    integer_constant = decimal_constant integer_suffix? | octal_constant integer_suffix? | 
+        hexadecimal_constant integer_suffix?;
+    character_constant = 'L'? ''' c_char_sequence ''';
+    blank = (cr | lf | tab | ' ')+;
+    comment = '/*' not_star* '*'+ (not_star_slash not_star* '*'+)* '/';
+
+Ignored Tokens
+    
+    blank, 
+    comment,
+    extern,
+    static,
+    auto,
+    register,
+    const,
+    volatile;
+
+Productions
+
+    translation_unit = 
+        declaration_or_definition*;
+
+    declaration_or_definition =
+        {struct_declaration}   struct_declaration |
+        {union_declaration}    union_declaration |
+        {enum_declaration}    enum_declaration |
+        {typedef_declaration}  typedef_declaration |
+        {function_declaration} function_declaration |
+        {variable_declaration} variable_declaration |
+        {function_definition}  function_definition;
+
+    struct_declaration =
+        struct identifier l_brace member_declaration* r_brace semicolon;
+
+    member_declaration =
+        type_specifier declarator semicolon;
+
+    type_specifier =
+        {void}           void_specifier |
+        {char}           char_specifier |
+        {signed_char}    signed_char_specifier |
+        {signed_short}   signed_short_specifier |
+        {signed_int}     signed_int_specifier |
+        {signed_long}    signed_long_specifier |
+        {unsigned_char}  unsigned_char_specifier |
+        {unsigned_short} unsigned_short_specifier |
+        {unsigned_int}   unsigned_int_specifier |
+        {unsigned_long}  unsigned_long_specifier |
+        {float}          float_specifier |
+        {double}         double_specifier |
+        {long_double}    long_double_specifier |
+        {struct}         struct_specifier |
+        {union}          union_specifier |
+        {enum}           enum_specifier |
+
+// for modified AST
+        ({typedef}       identifier);
+
+    void_specifier =
+        void;
+
+    char_specifier =
+        char;
+        
+    signed_char_specifier =
+        signed char;
+    
+    signed_short_specifier =
+        {short}            short |
+        {signed_short}     signed short |
+        {short_int}        short int |
+        {signed_short_int} signed short int;
+
+    signed_int_specifier =
+        {int}        int |
+        {signed}     signed |
+        {signed_int} signed int;
+
+    signed_long_specifier =
+        {long}            long |
+        {signed_long}     signed long |
+        {long_int}        long int |
+        {signed_long_int} signed long int;
+
+    unsigned_char_specifier =
+        unsigned char;
+        
+    unsigned_short_specifier =
+        {unsigned_short}     unsigned short |
+        {unsigned_short_int} unsigned short int;
+
+    unsigned_int_specifier =
+        {unsigned}     unsigned |
+        {unsigned_int} unsigned int;
+
+    unsigned_long_specifier =
+        {unsigned_long}     unsigned long |
+        {unsigned_long_int} unsigned long int;
+
+    float_specifier =
+        float;
+
+    double_specifier =
+        double;
+
+    long_double_specifier =
+        long double;
+
+    struct_specifier =
+        struct identifier;
+        
+    union_specifier =
+        union identifier;
+
+    enum_specifier =
+        enum identifier;
+
+    declarator =
+        {pointer} pointer |
+        {direct}  direct_declarator;
+
+    pointer =
+        {direct}  star direct_declarator |
+        {pointer} star pointer;
+
+    direct_declarator =
+        {identifier} identifier |
+        {array}      array_declarator |
+        {function}   function_pointer_declarator;
+
+    array_declarator =
+        {identifier} identifier l_bracket integer_constant? r_bracket |
+        {pointer}    l_par pointer r_par l_bracket integer_constant? r_bracket |
+        {array}      array_declarator l_bracket integer_constant? r_bracket;
+
+    function_pointer_declarator =
+        [plp]:l_par pointer [prp]:r_par [pllp]:l_par parameter_list? [plrp]:r_par;
+
+    parameter_list =
+        parameter_declaration parameter_list_tail*;
+
+    parameter_declaration =
+                              type_specifier declarator |
+        {abstract}            type_specifier abstract_declarator? |
+        {identifier}          identifier declarator |         // will be removed from AST
+        {abstract_identifier} identifier abstract_declarator?; // will be removed from AST
+
+    abstract_declarator =
+        {pointer} abstract_pointer |
+        {direct}  abstract_direct_declarator;
+
+    abstract_pointer =
+        {direct}  star abstract_direct_declarator? |
+        {pointer} star abstract_pointer;
+
+    abstract_direct_declarator =
+        {array}    abstract_array_declarator |
+        {function} abstract_function_pointer_declarator;
+
+    abstract_array_declarator =
+        {integer} l_bracket integer_constant? r_bracket |
+        {pointer} l_par abstract_pointer r_par l_bracket integer_constant? r_bracket |
+        {array}   abstract_array_declarator l_bracket integer_constant? r_bracket;
+
+    abstract_function_pointer_declarator =
+        [plp]:l_par abstract_pointer [prp]:r_par [pllp]:l_par parameter_list? [plrp]:r_par;
+
+    parameter_list_tail =
+        comma parameter_declaration;
+
+    union_declaration =
+        union identifier l_brace member_declaration* r_brace semicolon;
+
+    enum_declaration =
+        enum identifier l_brace enumerator additional_enumerator* r_brace semicolon;
+
+    additional_enumerator =
+        comma enumerator;
+
+    enumerator =
+        {automatic} identifier |
+        {specific}  identifier equal constant;
+
+    typedef_declaration =
+        typedef type_specifier declarator semicolon |
+        {identifier} typedef identifier declarator semicolon; // will be removed from AST
+
+    function_declaration =
+        type_specifier function_declarator semicolon |
+        {identifier} identifier function_declarator semicolon; // will be removed from AST
+
+    function_declarator =
+        {pointer} pointer_function |
+        {direct}  direct_function_declarator;
+
+    pointer_function =
+        {direct}  star direct_function_declarator |
+        {pointer} star pointer_function;
+
+    direct_function_declarator =
+        {array}      array_function_declarator |
+        {identifier} identifier l_par parameter_list? r_par |
+        {function}   [plp]:l_par pointer_function [prp]:r_par [pllp]:l_par parameter_list? [plrp]:r_par;
+
+    array_function_declarator =
+        {pointer} l_par pointer_function r_par l_bracket integer_constant? r_bracket |
+        {array}   array_function_declarator l_bracket integer_constant? r_bracket;
+
+    variable_declaration =
+        type_specifier declarator additional_declarator* semicolon |
+        {identifier} identifier declarator additional_declarator* semicolon; // will be removed from AST
+
+    additional_declarator =
+        comma declarator;
+
+    function_definition =
+        type_specifier function_declarator function_body |
+        {identifier} identifier function_declarator function_body; // will be removed from AST
+
+    function_body =
+        l_brace variable_declaration* statement* stop_statement? r_brace;
+
+    compound_statement =
+        l_brace statement* stop_statement? r_brace;
+
+    statement =
+        {comp_stmt}    compound_statement |
+        {basic_stmt}   basic_statement semicolon |
+        {if}           if l_par conditional_expression r_par compound_statement |
+        {if_then_else} if l_par conditional_expression r_par [then_comp_stmt]:compound_statement else [else_comp_stmt]:compound_statement |
+        {if_else}      if l_par conditional_expression r_par semicolon else compound_statement |
+        {while}        while l_par conditional_expression r_par compound_statement |
+        {do}           do compound_statement while l_par conditional_expression r_par semicolon |
+        {for}          for l_par [start]:basic_statement? [sc_one]:semicolon conditional_expression? [sc_two]:semicolon [iter]:basic_statement? r_par compound_statement |
+        {switch}       switch l_par value r_par case_statements;
+
+    basic_statement =
+        {call_expression}   call_expression |
+        {modify_expression} modify_expression |
+        {dead1} simple_expression |
+        {dead2} l_par star identifier r_par |
+        {dead3} l_par ampersand varname r_par |
+        {dead4} unop identifier |
+        {dead5} l_par unop identifier r_par |
+        {dead6} l_par type_name r_par varname |
+        {dead7} l_par type_name r_par constant;
+
+    rhs = 
+        {binary} binary_expression |
+        {unary}  unary_expression;
+
+    binary_expression =
+        {identifier} l_par identifier binop value r_par | // will be removed from AST
+        {constant}   l_par constant binop value r_par | // will be removed from AST
+
+// For modified AST
+        ( l_par [l_value]:value binop [r_value]:value r_par );
+
+    value =
+        {identifier} identifier |
+        {constant}   constant;
+
+    constant =
+        {floating}  unop? floating_constant |
+        {string}    unop? string_litteral |
+        {integer}   unop? integer_constant |
+        {character} unop? character_constant;
+
+    binop =
+        {relop}               relop |
+        {star}                star |
+        {div}                 div |
+        {mod}                 mod |
+        {ampersand}           ampersand |
+        {plus}                plus |
+        {minus}               minus |
+        {caret}               caret |
+        {excl_mark}           excl_mark |
+        {bar}                 bar |
+        {shl}                 shl |
+        {shr}                 shr |
+        {ampersand_ampersand} ampersand_ampersand |
+        {bar_bar}             bar_bar;
+
+    relop =
+        {eq}   eq |
+        {neq}  neq |
+        {lt}   lt |
+        {lteq} lteq |
+        {gt}   gt |
+        {gteq} gteq;
+        
+    unary_expression =
+        {simple}     simple_expression |
+        {reference}  l_par star identifier r_par |
+        {address}    l_par ampersand varname r_par |
+        {call}       call_expression |
+        {unop}       unop identifier |
+        {par_unop}   l_par unop identifier r_par |
+        {cast}       l_par type_name r_par varname |
+        {cast_const} l_par type_name r_par constant;
+        
+    simple_expression =
+        {varname} varname |
+        {constant} constant;
+
+    varname =
+        {arrayref}   arrayref |
+        {compref}    compref |
+        {identifier} identifier;
+
+    arrayref =
+        identifier reflist+;
+
+    reflist =
+        l_bracket value r_bracket;
+
+    compref =
+        {indirect} l_par star identifier r_par idlist+ |
+        {direct}   identifier idlist+;
+
+    idlist =
+        dot identifier;
+
+    call_expression =
+        identifier l_par arglist? r_par;
+
+    arglist =
+        value arglist_tail*;
+
+    arglist_tail =
+        comma value;
+
+    unop =
+        {plus}      plus |
+        {minus}     minus |
+        {tilde}     tilde |
+        {excl_mark} excl_mark;
+
+    type_name =
+        type_specifier abstract_declarator? |
+        {identifier} identifier abstract_declarator?; // will be removed from AST
+
+    modify_expression =
+        {direct}   varname equal rhs |
+        {indirect} l_par star identifier r_par equal rhs;
+    
+    conditional_expression =
+        {rel}   l_par [left]:value relop [right]:value r_par |
+        {value} value;
+
+    case_statements =
+        l_brace case_statement+ default_statement r_brace;
+
+    case_statement =
+        {body}  case constant colon l_brace statement* stop_statement r_brace | 
+        {empty} case constant colon;
+
+    stop_statement =
+        {break}        break semicolon dead_code* |
+        {continue}     continue semicolon dead_code* |
+        {return}       return semicolon dead_code* |
+        {return_value} return value semicolon dead_code* |
+        {return_par}   return l_par value r_par semicolon dead_code*;
+
+    dead_code =
+        {dead1} statement |
+        {dead2} break semicolon |
+        {dead3} continue semicolon |
+        {dead4} return semicolon |
+        {dead5} return value semicolon |
+        {dead6} return l_par value r_par semicolon;
+
+    default_statement =
+        {body}  default colon l_brace statement* stop_statement r_brace |
+        {empty} default colon;
