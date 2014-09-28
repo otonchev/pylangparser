@@ -95,6 +95,7 @@ BAR_EQUAL = Operator(r'|=')
 IDENTIFIER = Symbols(r'[A-Za-z_]+[A-Za-z0-9_]*')
 STRING_IDENTIFIER = Symbols(r'\".*\"')
 CONSTANT = Symbols(r'[0-9]*')
+INT_CONSTANT = Symbols(r'[0-9]*')
 
 C_STYLE_COMMENT = Ignore(r'\/\*.*(\*/){,1}')
 CPP_STYLE_COMMENT = Ignore(r'\/\/[^\n]*')
@@ -117,7 +118,7 @@ OPERATORS = DOT & COMMA & COLON & SEMICOLON & L_PAR & R_PAR & L_BRACKET & \
     MOD_EQUAL & PLUS_EQUAL & MINUS_EQUAL & SHL_EQUAL & SHR_EQUAL & \
     AMPERSAND_EQUAL & CARET_EQUAL & BAR_EQUAL
 
-IDENTIFIERS = IDENTIFIER & CONSTANT & STRING_IDENTIFIER
+IDENTIFIERS = IDENTIFIER & CONSTANT & STRING_IDENTIFIER & INT_CONSTANT
 
 # join all token sub-groups
 TOKENS = KEYWORDS & OPERATORS & IDENTIFIERS & IGNORES
@@ -149,6 +150,8 @@ typedef unsigned char BYTE;
 unsigned int p, c;
 
 enum some_name{p = 1, q};
+
+char * func(int p, char t);
 
 """
 
@@ -252,8 +255,8 @@ parameter_declaration = (type_specifier & RecursiveParser(get_declarator)) | \
     RecursiveParser(get_declarator)) | (SymbolsParser(IDENTIFIER) & \
     abstract_declarator)
 
-parameter_list = parameter_declaration & Repeat(OperatorParser(COMMA) & \
-    parameter_declaration)
+parameter_list = parameter_declaration & Optional(Repeat(OperatorParser(COMMA) & \
+    parameter_declaration))
 
 def get_pointer():
     return pointer
@@ -312,10 +315,10 @@ additional_declarator = \
         OperatorParser(COMMA) & declarator
 
 variable_declaration = \
-    (type_specifier & declarator & ZeroOrMore(additional_declarator & \
-    OperatorParser(SEMICOLON)) |
+    (type_specifier & declarator & ZeroOrMore(additional_declarator) & \
+    OperatorParser(SEMICOLON)) | \
     (SymbolsParser(IDENTIFIER) & declarator & ZeroOrMore(additional_declarator) & \
-    OperatorParser(SEMICOLON)))
+    OperatorParser(SEMICOLON))
 
 enumerator = \
     (SymbolsParser(IDENTIFIER) & OperatorParser(EQUAL) & SymbolsParser(CONSTANT)) | \
@@ -325,10 +328,46 @@ enum_declaration = \
     enumerator & ZeroOrMore(OperatorParser(COMMA) & enumerator) & \
     OperatorParser(R_BRACE) & OperatorParser(SEMICOLON)
 
-declaration_or_definition = struct_declaration | union_declaration | \
-    typedef_declaration | variable_declaration | enum_declaration
+
+#
+# function declaration
+#
+def get_pointer_function():
+    return pointer_function
+
+array_function_declarator = \
+    (OperatorParser(L_PAR) & RecursiveParser(get_pointer_function) & \
+    OperatorParser(R_PAR) & Repeat(OperatorParser(L_BRACKET) & \
+    SymbolsParser(INT_CONSTANT) & OperatorParser(R_BRACKET)))
+
+direct_function_declarator = \
+    array_function_declarator | \
+    (SymbolsParser(IDENTIFIER) & OperatorParser(L_PAR) & \
+    ZeroOrMore(parameter_list) & OperatorParser(R_PAR)) | \
+    (OperatorParser(L_PAR) & RecursiveParser(get_pointer_function) & \
+    OperatorParser(R_PAR) & OperatorParser(L_PAR) & \
+    ZeroOrMore(parameter_list) & OperatorParser(R_PAR))
+
+pointer_function = \
+    (OperatorParser(STAR) & direct_function_declarator) | \
+    (OperatorParser(STAR) & RecursiveParser(get_pointer_function))
+
+function_declarator = \
+    direct_function_declarator | pointer_function
+
+function_declaration = \
+    (type_specifier & function_declarator & OperatorParser(SEMICOLON)) | \
+    (SymbolsParser(IDENTIFIER) & function_declarator & OperatorParser(SEMICOLON))
+
+declaration_or_definition = \
+    struct_declaration | \
+    union_declaration | \
+    typedef_declaration | \
+    enum_declaration | \
+    variable_declaration | \
+    function_declaration
     # To be added to the grammar:
-    #function_declaration | function_definition
+    # function_definition
 
 translation_unit = AllTokensConsumed(Repeat(declaration_or_definition))
 
