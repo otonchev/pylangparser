@@ -169,7 +169,20 @@ func2(const int p, char t) {
   char *f;
   unsigned short j;
 
-  return 5;
+  q = 5;
+  func(12, q, 42);
+
+  {
+    {
+      q = 1;
+    }
+    q = 5;
+    return f;
+  }
+
+  return p = 6;
+  /* FIXME: return (f == 5); */
+  /* FISME: return (f);*/
 }
 
 """
@@ -386,7 +399,8 @@ idlist = \
     OperatorParser(DOT) & SymbolsParser(IDENTIFIER)
 
 compref = \
-    OperatorParser(L_PAR) & OperatorParser(STAR) & SymbolsParser(IDENTIFIER) & OperatorParser(R_PAR) & Repeat(idlist) | \
+    OperatorParser(L_PAR) & OperatorParser(STAR) & SymbolsParser(IDENTIFIER) & \
+        OperatorParser(R_PAR) & Repeat(idlist) | \
     SymbolsParser(IDENTIFIER) & Repeat(idlist)
 
 value = SymbolsParser(IDENTIFIER) | SymbolsParser(CONSTANT)
@@ -407,61 +421,108 @@ unop = \
     OperatorParser(TILDE) | \
     OperatorParser(EXCL_MARK)
 
+relop = \
+    OperatorParser(EQ) | \
+    OperatorParser(NEQ) | \
+    OperatorParser(LT) | \
+    OperatorParser(LTEQ) | \
+    OperatorParser(GT) | \
+    OperatorParser(GTEQ)
+
+binop = \
+    relop | \
+    OperatorParser(STAR) | \
+    OperatorParser(DIV) | \
+    OperatorParser(MOD) | \
+    OperatorParser(AMPERSAND) | \
+    OperatorParser(PLUS) | \
+    OperatorParser(MINUS) | \
+    OperatorParser(CARET) | \
+    OperatorParser(EXCL_MARK) | \
+    OperatorParser(BAR) | \
+    OperatorParser(SHL) | \
+    OperatorParser(SHR) | \
+    OperatorParser(AMPERSAND_AMPERSAND) | \
+    OperatorParser(BAR_BAR)
+
 simple_expression = \
     varname | \
     SymbolsParser(CONSTANT)
 
 binary_expression = \
-    (l_par & identifier & binop & value & r_par) | \
-    (l_par & constant & binop & value & r_par) | \
-    (l_par & value & binop & value & r_par)
+    (OperatorParser(L_PAR) & SymbolsParser(IDENTIFIER) & binop & value & OperatorParser(R_PAR)) | \
+    (OperatorParser(L_PAR) & SymbolsParser(CONSTANT) & binop & value & OperatorParser(R_PAR)) | \
+    (OperatorParser(L_PAR) & value & binop & value & OperatorParser(R_PAR))
 
 arglist = \
-    value & Repeat(comma & value)
+    value & ZeroOrMore(OperatorParser(COMMA) & value)
 
 call_expression = \
-    identifier & l_par & arglist? & r_par
+    SymbolsParser(IDENTIFIER) & OperatorParser(L_PAR) & Optional(arglist) & \
+    OperatorParser(R_PAR)
 
 unary_expression = \
     simple_expression | \
-    (l_par & star & identifier & r_par) | \
-    (l_par & ampersand & varname & r_par) | \
-    call_expression | \
-    (unop & identifier) | \
-    (l_par & unop & identifier & r_par) | \
-    (l_par & type_name & r_par & varname) | \
-    (l_par & type_name & r_par & constant)
-
-rhs = \
-    binary_expression |
-    unary_expression
-
-modify_expression = \
-    (varname & OperatorParser(EQUAL) & rhs) |
-    (OperatorParser(L_PAR) & OperatorParser(STAR) & SymbolsParser(IDENTIFIER) & OperatorParser(R_PAR) & OperatorParser(EQUAL) & rhs)
-
-#simple_statement
-statement = \
-    call_expression | \
-    modify_expression | \
-    simple_expression | \
     (OperatorParser(L_PAR) & OperatorParser(STAR) & SymbolsParser(IDENTIFIER) & OperatorParser(R_PAR)) | \
     (OperatorParser(L_PAR) & OperatorParser(AMPERSAND) & varname & OperatorParser(R_PAR)) | \
+    call_expression | \
     (unop & SymbolsParser(IDENTIFIER)) | \
     (OperatorParser(L_PAR) & unop & SymbolsParser(IDENTIFIER) & OperatorParser(R_PAR)) | \
     (OperatorParser(L_PAR) & type_name & OperatorParser(R_PAR) & varname) | \
     (OperatorParser(L_PAR) & type_name & OperatorParser(R_PAR) & SymbolsParser(CONSTANT))
 
+rhs = \
+    binary_expression | \
+    unary_expression
+
+modify_expression = \
+    (varname & OperatorParser(EQUAL) & rhs) | \
+    (OperatorParser(L_PAR) & OperatorParser(STAR) & SymbolsParser(IDENTIFIER) & \
+        OperatorParser(R_PAR) & OperatorParser(EQUAL) & rhs)
+
+basic_statement = \
+    call_expression | \
+    modify_expression | \
+    simple_expression | \
+    (OperatorParser(L_PAR) & OperatorParser(STAR) & SymbolsParser(IDENTIFIER) & \
+        OperatorParser(R_PAR)) | \
+    (OperatorParser(L_PAR) & OperatorParser(AMPERSAND) & varname & \
+        OperatorParser(R_PAR)) | \
+    (unop & SymbolsParser(IDENTIFIER)) | \
+    (OperatorParser(L_PAR) & unop & SymbolsParser(IDENTIFIER) & OperatorParser(R_PAR)) | \
+    (OperatorParser(L_PAR) & type_name & OperatorParser(R_PAR) & varname) | \
+    (OperatorParser(L_PAR) & type_name & OperatorParser(R_PAR) & SymbolsParser(CONSTANT))
+
+def get_statement():
+    return statement
+def get_stop_statement():
+    return stop_statement
+compound_statement = \
+    OperatorParser(L_BRACE) & ZeroOrMore(RecursiveParser(get_statement)) & \
+    Optional(RecursiveParser(get_stop_statement)) & OperatorParser(R_BRACE)
+
+statement = \
+    compound_statement | \
+    (basic_statement & OperatorParser(SEMICOLON))
+#    if l_par conditional_expression r_par compound_statement |
+#    if l_par conditional_expression r_par [then_comp_stmt]:compound_statement else [else_comp_stmt]:compound_statement |
+#    if l_par conditional_expression r_par semicolon else compound_statement |
+#    while l_par conditional_expression r_par compound_statement |
+#    do compound_statement while l_par conditional_expression r_par semicolon |
+#    for l_par [start]:basic_statement? [sc_one]:semicolon conditional_expression? [sc_two]:semicolon [iter]:basic_statement? r_par compound_statement |
+#    switch l_par value r_par case_statements
+
 dead_code = \
     (KeywordParser(BREAK) & OperatorParser(SEMICOLON)) | \
     (KeywordParser(CONTINUE) & OperatorParser(SEMICOLON)) | \
-    (KeywordParser(RETURN) & statement) | \
+    (KeywordParser(RETURN) & statement & OperatorParser(SEMICOLON)) | \
     (KeywordParser(RETURN) & OperatorParser(SEMICOLON)) | \
     (KeywordParser(RETURN) & value & OperatorParser(SEMICOLON)) | \
     (KeywordParser(RETURN) & OperatorParser(L_PAR) & value & \
         OperatorParser(R_PAR) & OperatorParser(SEMICOLON))
 
 stop_statement = \
+    (KeywordParser(RETURN) & statement & ZeroOrMore(dead_code)) | \
     (KeywordParser(BREAK) & OperatorParser(SEMICOLON) & ZeroOrMore(dead_code)) | \
     (KeywordParser(CONTINUE) & OperatorParser(SEMICOLON) & ZeroOrMore(dead_code)) | \
     (KeywordParser(RETURN) & OperatorParser(SEMICOLON) & ZeroOrMore(dead_code)) | \
