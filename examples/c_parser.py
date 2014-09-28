@@ -94,11 +94,11 @@ BAR_EQUAL = Operator(r'|=')
 
 IDENTIFIER = Symbols(r'[A-Za-z_]+[A-Za-z0-9_]*')
 STRING_IDENTIFIER = Symbols(r'\".*\"')
-CONSTANT = Symbols(r'[0-9]*') #FIXME
+CONSTANT = Symbols(r'[0-9]*')
 
-C_STYLE_COMMENT = Ignore(r'/\*.*\*/')
-CPP_STYLE_COMMENT = Ignore(r'//.*\n')
-MACROS = Ignore(r'#.*\n')
+C_STYLE_COMMENT = Ignore(r'\/\*.*(\*/){,1}')
+CPP_STYLE_COMMENT = Ignore(r'\/\/[^\n]*')
+MACROS = Ignore(r'\#.*\n')
 IGNORE_CHARS = Ignore(r'[ \t\v\f]+')
 
 # group tokens into sub-groups
@@ -109,7 +109,7 @@ KEYWORDS = AUTO & BREAK & CASE & ENUM & CONST & CONTINUE & DEFAULT & DO & ELSE &
     SWITCH & UNION & VOLATILE & WHILE & ENUM & TYPEDEF & VOID & CHAR & SHORT & \
     INT & LONG & FLOAT & DOUBLE & SIGNED & UNSIGNED
 
-OperatorS = DOT & COMMA & COLON & SEMICOLON & L_PAR & R_PAR & L_BRACKET & \
+OPERATORS = DOT & COMMA & COLON & SEMICOLON & L_PAR & R_PAR & L_BRACKET & \
     R_BRACKET & L_BRACE & R_BRACE & STAR & DIV & MOD & AMPERSAND & PLUS & \
     MINUS & CARET & TILDE & EXCL_MARK & QUEST_MARK & BAR & ELLIPSIS & EQUAL & \
     EQ & NEQ & LT & LTEQ & GT & GTEQ & ARROW & PLUS_PLUS & MINUS_MINUS & \
@@ -120,13 +120,21 @@ OperatorS = DOT & COMMA & COLON & SEMICOLON & L_PAR & R_PAR & L_BRACKET & \
 IDENTIFIERS = IDENTIFIER & CONSTANT & STRING_IDENTIFIER
 
 # join all token sub-groups
-TOKENS = KEYWORDS & OperatorS & IDENTIFIERS & IGNORES
+TOKENS = KEYWORDS & OPERATORS & IDENTIFIERS & IGNORES
 
 
 # our source code
 source = r"""
 
-p--p++p()
+#include <stdio.h>
+
+struct struct_name {
+  signed short int *p;
+  char p;
+  int * t;
+  int p[5][5];
+  /* comment */
+};
 
 """
 
@@ -137,14 +145,139 @@ print(tokens)
 
 # define grammar
 
-#jump_statement = (KeywordParser(GOTO) & SymbolsParser(IDENTIFIER) & \
-#    OperatorParser(COLON)) | (KeywordParser(CONTINUE) & \
-#    OperatorParser(COLON)) | (KeywordParser(BREAK) & \
-#    OperatorParser(COLON)) | (KeywordParser(RETURN) & \
-#    OperatorParser(COLON)) | (KeywordParser(RETURN) & \
-#    expression)
+void_specifier = KeywordParser(VOID)
 
-#result = jump_statement(tokens, 0)
+char_specifier = KeywordParser(CHAR)
 
-#result = postfix_expression(tokens, 0)
-#print(result)
+signed_char_specifier = KeywordParser(SIGNED) & KeywordParser(CHAR)
+
+# order is important as only the first series of parsers which apply
+# will be considered
+# That is why it is important to take "short int" before "short"
+signed_short_specifier = \
+    (KeywordParser(SHORT) & KeywordParser(INT)) | \
+    (KeywordParser(SIGNED) & KeywordParser(SHORT) & KeywordParser(INT)) | \
+    (KeywordParser(SIGNED) & KeywordParser(SHORT)) | \
+    KeywordParser(SHORT)
+
+signed_int_specifier = \
+    (KeywordParser(SIGNED) & KeywordParser(INT)) | \
+    KeywordParser(INT) | \
+    KeywordParser(SIGNED)
+
+signed_long_specifier = \
+    (KeywordParser(SIGNED) & KeywordParser(LONG) & KeywordParser(INT)) | \
+    (KeywordParser(SIGNED) & KeywordParser(LONG)) | \
+    (KeywordParser(LONG) & KeywordParser(INT)) | \
+    KeywordParser(LONG)
+
+unsigned_char_specifier = KeywordParser(UNSIGNED) & KeywordParser(CHAR)
+
+unsigned_short_specifier = \
+    (KeywordParser(UNSIGNED) & KeywordParser(SHORT) & KeywordParser(INT)) | \
+    (KeywordParser(UNSIGNED) & KeywordParser(SHORT))
+
+unsigned_int_specifier = \
+    (KeywordParser(UNSIGNED) & KeywordParser(INT)) | \
+    KeywordParser(UNSIGNED)
+
+unsigned_long_specifier = \
+    (KeywordParser(UNSIGNED) & KeywordParser(LONG) & KeywordParser(INT)) | \
+    (KeywordParser(UNSIGNED) & KeywordParser(LONG))
+
+float_specifier = KeywordParser(FLOAT)
+
+double_specifier = KeywordParser(DOUBLE)
+
+long_double_specifier = KeywordParser(LONG) & KeywordParser(DOUBLE)
+
+struct_specifier = KeywordParser(STRUCT) & SymbolsParser(IDENTIFIER)
+
+union_specifier = KeywordParser(UNION) & SymbolsParser(IDENTIFIER)
+
+enum_specifier = KeywordParser(ENUM) & SymbolsParser(IDENTIFIER)
+
+type_specifier = void_specifier | char_specifier | signed_char_specifier | \
+    signed_short_specifier | signed_int_specifier | signed_long_specifier | \
+    unsigned_char_specifier | unsigned_short_specifier | unsigned_int_specifier | \
+    unsigned_long_specifier | float_specifier | double_specifier | \
+    long_double_specifier | struct_specifier | union_specifier | enum_specifier | \
+    SymbolsParser(IDENTIFIER)
+
+def get_abstract_pointer():
+    return abstract_pointer
+def get_abstract_array_declarator():
+    return abstract_array_declarator
+abstract_array_declarator = (OperatorParser(L_BRACKET) & \
+    SymbolsParser(CONSTANT) & OperatorParser(R_BRACKET)) | \
+    (OperatorParser(L_PAR) & RecursiveParser(get_abstract_pointer) & \
+    OperatorParser(R_PAR) & OperatorParser(L_BRACKET) & SymbolsParser(CONSTANT) & \
+    OperatorParser(R_BRACKET)) | (RecursiveParser(get_abstract_array_declarator) & \
+    OperatorParser(L_BRACKET) & SymbolsParser(CONSTANT) & OperatorParser(R_BRACKET))
+
+def get_parameter_list():
+    return parameter_list
+def get_abstract_pointer():
+    return abstract_pointer
+abstract_direct_declarator = abstract_array_declarator | \
+    (OperatorParser(L_PAR) & RecursiveParser(get_abstract_pointer) & \
+    OperatorParser(R_PAR) & OperatorParser(L_PAR) & \
+    RecursiveParser(get_parameter_list) & OperatorParser(R_PAR))
+
+def get_abstract_pointer():
+    return abstract_pointer
+abstract_pointer = (OperatorParser(STAR) & abstract_direct_declarator) | \
+    (OperatorParser(STAR) & RecursiveParser(get_abstract_pointer))
+
+abstract_declarator = abstract_pointer | abstract_direct_declarator
+
+def get_declarator():
+    return declarator
+parameter_declaration = (type_specifier & RecursiveParser(get_declarator)) | \
+    (type_specifier & abstract_declarator) | (SymbolsParser(IDENTIFIER) & \
+    RecursiveParser(get_declarator)) | (SymbolsParser(IDENTIFIER) & \
+    abstract_declarator)
+
+parameter_list = parameter_declaration & Repeat(OperatorParser(COMMA) & \
+    parameter_declaration)
+
+def get_pointer():
+    return pointer
+array_declarator_tail = \
+    OperatorParser(L_BRACKET) & Optional(SymbolsParser(CONSTANT)) & \
+    OperatorParser(R_BRACKET)
+array_declarator = (SymbolsParser(IDENTIFIER) & OperatorParser(L_BRACKET) & \
+    Optional(SymbolsParser(CONSTANT)) & OperatorParser(R_BRACKET) & \
+    ZeroOrMore(array_declarator_tail)) | \
+    (OperatorParser(L_PAR) & RecursiveParser(get_pointer) & OperatorParser(R_PAR) & \
+    OperatorParser(L_BRACKET) & Optional(SymbolsParser(CONSTANT)) & \
+    OperatorParser(R_BRACKET) & ZeroOrMore(array_declarator_tail))
+
+def get_function_pointer_declarator():
+    return function_pointer_declarator
+direct_declarator = array_declarator | SymbolsParser(IDENTIFIER) | \
+    RecursiveParser(get_function_pointer_declarator)
+
+pointer = (KeywordParser(STAR) & direct_declarator) | (KeywordParser(STAR) & \
+    RecursiveParser(get_pointer))
+
+function_pointer_declarator = OperatorParser(L_PAR) & pointer & \
+    OperatorParser(R_PAR) & OperatorParser(L_PAR) & Optional(parameter_list) & \
+    OperatorParser(R_PAR)
+
+declarator = pointer | direct_declarator
+
+member_declaration = type_specifier & declarator & OperatorParser(SEMICOLON)
+
+struct_declaration = KeywordParser(STRUCT) & SymbolsParser(IDENTIFIER) & \
+    OperatorParser(L_BRACE) & Repeat(member_declaration) & \
+    OperatorParser(R_BRACE) & OperatorParser(SEMICOLON)
+
+declaration_or_definition = struct_declaration #| union_declaration | \
+    #enum_declaration |  typedef_declaration | function_declaration | \
+    #variable_declaration | function_definition
+
+translation_unit = Repeat(declaration_or_definition)
+
+result = translation_unit(tokens, 0)
+print(result)

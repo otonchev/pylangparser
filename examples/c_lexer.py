@@ -54,12 +54,13 @@ AND = Operator(r'&')
 POINTER = Operator('*')
 PP = Operator(r'++')
 LE = Operator(r'<=')
+DIV = Operator('/')
 
 IDENTIFIER = Symbols(r'[A-Za-z_]+[A-Za-z0-9_]*')
 INT_IDENTIFIER = Symbols(r'[0-9]*')
 STRING_IDENTIFIER = Symbols(r'\".*\"')
 
-C_STYLE_COMMENT = Ignore(r'/\*.*\*/')
+C_STYLE_COMMENT = Ignore(r'\/\*.*(\*/){,1}')
 CPP_STYLE_COMMENT = Ignore(r'//.*\n')
 MACROS = Ignore(r'#.*\n')
 IGNORE_CHARS = Ignore(r'[ \t\v\f]+')
@@ -73,7 +74,7 @@ KEYWORDS = AUTO & BREAK & CASE & ENUM & CONST & CONTINUE & DEFAULT & DO & ELSE &
     INT & LONG & FLOAT & DOUBLE & SIGNED & UNSIGNED
 
 OPERATORS = COMMA & COLON & ASSIGNMENT & LBRACKET & RBRACKET & LBRACE & RBRACE & \
-    AND & POINTER & PP & LE
+    AND & POINTER & PP & LE & DIV
 
 IDENTIFIERS = IDENTIFIER & INT_IDENTIFIER & STRING_IDENTIFIER
 
@@ -111,6 +112,7 @@ long factorial(int n)
  
   return result;
 }
+/* comment */
 
 """
 

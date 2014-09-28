@@ -456,7 +456,7 @@ class ParseTests(unittest.TestCase):
 	self.INT_IDENTIFIER = Symbols(r'[0-9]*')
 	self.STRING_IDENTIFIER = Symbols(r'\".*\"')
 
-	self.C_STYLE_COMMENT = Ignore(r'/\*.*\*/')
+	self.C_STYLE_COMMENT = Ignore(r'\/\*.*(\*/){,1}')
 	self.CPP_STYLE_COMMENT = Ignore(r'//.*\n')
 	self.MACROS = Ignore(r'\#.*\n')
 	self.IGNORE_CHARS = Ignore(r'[ \t\v\f]+')
