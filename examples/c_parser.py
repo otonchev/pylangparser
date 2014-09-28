@@ -15,7 +15,6 @@ from pylangparser import *
 AUTO = Keyword(r'auto')
 BREAK = Keyword(r'break')
 CASE = Keyword(r'case')
-CONST = Keyword(r'const')
 CONTINUE = Keyword(r'continue')
 DEFAULT = Keyword(r'default')
 DO = Keyword(r'do')
@@ -101,11 +100,22 @@ C_STYLE_COMMENT = Ignore(r'\/\*.*(\*/){,1}')
 CPP_STYLE_COMMENT = Ignore(r'\/\/[^\n]*')
 MACROS = Ignore(r'\#.*\n')
 IGNORE_CHARS = Ignore(r'[ \t\v\f]+')
+CONST = Ignore(r'const')
 
 # group tokens into sub-groups
-IGNORES = C_STYLE_COMMENT & CPP_STYLE_COMMENT & MACROS & IGNORE_CHARS
 
-KEYWORDS = AUTO & BREAK & CASE & ENUM & CONST & CONTINUE & DEFAULT & DO & ELSE & \
+# Note: order is important as the first entry in the list that matches a given
+# token will be considered. Example:
+#
+# CONST = Ignore(r'const')
+# IDENTIFIER = Symbols(r'[A-Za-z_]+[A-Za-z0-9_]*')
+#
+# if IDENTIFIER appears before CONST, the latter will never appear in the
+# result list as 'const' matches both tokens
+
+IGNORES = CONST & C_STYLE_COMMENT & CPP_STYLE_COMMENT & MACROS & IGNORE_CHARS
+
+KEYWORDS = AUTO & BREAK & CASE & ENUM & CONTINUE & DEFAULT & DO & ELSE & \
     EXTERN & FOR & GOTO & IF & REGISTER & RETURN & SIZEOF & STATIC & STRUCT & \
     SWITCH & UNION & VOLATILE & WHILE & ENUM & TYPEDEF & VOID & CHAR & SHORT & \
     INT & LONG & FLOAT & DOUBLE & SIGNED & UNSIGNED
@@ -121,7 +131,7 @@ OPERATORS = DOT & COMMA & COLON & SEMICOLON & L_PAR & R_PAR & L_BRACKET & \
 IDENTIFIERS = IDENTIFIER & CONSTANT & STRING_IDENTIFIER & INT_CONSTANT
 
 # join all token sub-groups
-TOKENS = KEYWORDS & OPERATORS & IDENTIFIERS & IGNORES
+TOKENS = IGNORES & KEYWORDS & OPERATORS & IDENTIFIERS
 
 
 # our source code
@@ -152,6 +162,15 @@ unsigned int p, c;
 enum some_name{p = 1, q};
 
 char * func(int p, char t);
+
+int
+func2(const int p, char t) {
+  int l, q;
+  char *f;
+  unsigned short j;
+
+  return 5;
+}
 
 """
 
@@ -359,15 +378,113 @@ function_declaration = \
     (type_specifier & function_declarator & OperatorParser(SEMICOLON)) | \
     (SymbolsParser(IDENTIFIER) & function_declarator & OperatorParser(SEMICOLON))
 
+#
+# function definition
+#
+
+idlist = \
+    OperatorParser(DOT) & SymbolsParser(IDENTIFIER)
+
+compref = \
+    OperatorParser(L_PAR) & OperatorParser(STAR) & SymbolsParser(IDENTIFIER) & OperatorParser(R_PAR) & Repeat(idlist) | \
+    SymbolsParser(IDENTIFIER) & Repeat(idlist)
+
+value = SymbolsParser(IDENTIFIER) | SymbolsParser(CONSTANT)
+
+reflist = OperatorParser(L_BRACKET) & value & OperatorParser(R_BRACKET)
+
+arrayref = SymbolsParser(IDENTIFIER) & Repeat(reflist)
+
+varname = arrayref | compref | SymbolsParser(IDENTIFIER)
+
+type_name = \
+    type_specifier & abstract_declarator | \
+    SymbolsParser(IDENTIFIER) & abstract_declarator
+
+unop = \
+    OperatorParser(PLUS) | \
+    OperatorParser(MINUS) | \
+    OperatorParser(TILDE) | \
+    OperatorParser(EXCL_MARK)
+
+simple_expression = \
+    varname | \
+    SymbolsParser(CONSTANT)
+
+binary_expression = \
+    (l_par & identifier & binop & value & r_par) | \
+    (l_par & constant & binop & value & r_par) | \
+    (l_par & value & binop & value & r_par)
+
+arglist = \
+    value & Repeat(comma & value)
+
+call_expression = \
+    identifier & l_par & arglist? & r_par
+
+unary_expression = \
+    simple_expression | \
+    (l_par & star & identifier & r_par) | \
+    (l_par & ampersand & varname & r_par) | \
+    call_expression | \
+    (unop & identifier) | \
+    (l_par & unop & identifier & r_par) | \
+    (l_par & type_name & r_par & varname) | \
+    (l_par & type_name & r_par & constant)
+
+rhs = \
+    binary_expression |
+    unary_expression
+
+modify_expression = \
+    (varname & OperatorParser(EQUAL) & rhs) |
+    (OperatorParser(L_PAR) & OperatorParser(STAR) & SymbolsParser(IDENTIFIER) & OperatorParser(R_PAR) & OperatorParser(EQUAL) & rhs)
+
+#simple_statement
+statement = \
+    call_expression | \
+    modify_expression | \
+    simple_expression | \
+    (OperatorParser(L_PAR) & OperatorParser(STAR) & SymbolsParser(IDENTIFIER) & OperatorParser(R_PAR)) | \
+    (OperatorParser(L_PAR) & OperatorParser(AMPERSAND) & varname & OperatorParser(R_PAR)) | \
+    (unop & SymbolsParser(IDENTIFIER)) | \
+    (OperatorParser(L_PAR) & unop & SymbolsParser(IDENTIFIER) & OperatorParser(R_PAR)) | \
+    (OperatorParser(L_PAR) & type_name & OperatorParser(R_PAR) & varname) | \
+    (OperatorParser(L_PAR) & type_name & OperatorParser(R_PAR) & SymbolsParser(CONSTANT))
+
+dead_code = \
+    (KeywordParser(BREAK) & OperatorParser(SEMICOLON)) | \
+    (KeywordParser(CONTINUE) & OperatorParser(SEMICOLON)) | \
+    (KeywordParser(RETURN) & statement) | \
+    (KeywordParser(RETURN) & OperatorParser(SEMICOLON)) | \
+    (KeywordParser(RETURN) & value & OperatorParser(SEMICOLON)) | \
+    (KeywordParser(RETURN) & OperatorParser(L_PAR) & value & \
+        OperatorParser(R_PAR) & OperatorParser(SEMICOLON))
+
+stop_statement = \
+    (KeywordParser(BREAK) & OperatorParser(SEMICOLON) & ZeroOrMore(dead_code)) | \
+    (KeywordParser(CONTINUE) & OperatorParser(SEMICOLON) & ZeroOrMore(dead_code)) | \
+    (KeywordParser(RETURN) & OperatorParser(SEMICOLON) & ZeroOrMore(dead_code)) | \
+    (KeywordParser(RETURN) & value & OperatorParser(SEMICOLON) & ZeroOrMore(dead_code)) | \
+    (KeywordParser(RETURN) & OperatorParser(L_PAR) & value & OperatorParser(R_PAR) & \
+        OperatorParser(SEMICOLON) & ZeroOrMore(dead_code))
+
+function_body = \
+    OperatorParser(L_BRACE) & ZeroOrMore(variable_declaration) & \
+    ZeroOrMore(statement) & ZeroOrMore(stop_statement) & OperatorParser(R_BRACE)
+
+function_definition = \
+    (type_specifier & function_declarator & function_body) | \
+    (SymbolsParser(IDENTIFIER) & function_declarator & function_body)
+
 declaration_or_definition = \
     struct_declaration | \
     union_declaration | \
     typedef_declaration | \
     enum_declaration | \
     variable_declaration | \
-    function_declaration
-    # To be added to the grammar:
-    # function_definition
+    function_declaration | \
+    function_definition
 
 translation_unit = AllTokensConsumed(Repeat(declaration_or_definition))
 
