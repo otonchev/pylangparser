@@ -136,6 +136,20 @@ struct struct_name {
   /* comment */
 };
 
+union union_name {
+  signed short int *p;
+  char p;
+  int * t;
+  int p[5][5];
+  /* comment */
+};
+
+typedef unsigned char BYTE;
+
+unsigned int p, c;
+
+enum some_name{p = 1, q};
+
 """
 
 # obtain a list of all tokens present in the source
@@ -151,9 +165,9 @@ char_specifier = KeywordParser(CHAR)
 
 signed_char_specifier = KeywordParser(SIGNED) & KeywordParser(CHAR)
 
-# order is important as only the first series of parsers which apply
-# will be considered
-# That is why it is important to take "short int" before "short"
+# Note: order is important as only the first sub-group of parsers
+# (parser1 & parser2 &...& parsern) which applies will be considered
+# That's why it is important to take "short int" before "short"
 signed_short_specifier = \
     (KeywordParser(SHORT) & KeywordParser(INT)) | \
     (KeywordParser(SIGNED) & KeywordParser(SHORT) & KeywordParser(INT)) | \
@@ -269,15 +283,54 @@ declarator = pointer | direct_declarator
 
 member_declaration = type_specifier & declarator & OperatorParser(SEMICOLON)
 
-struct_declaration = KeywordParser(STRUCT) & SymbolsParser(IDENTIFIER) & \
+# main groups:
+#              struct_declaration,
+#              union_declaration,
+#              enum_declaration,
+#              typedef_declaration,
+#              function_declaration,
+#              variable_declaration,
+#              function_definition
+#
+struct_declaration = \
+    KeywordParser(STRUCT) & SymbolsParser(IDENTIFIER) & \
     OperatorParser(L_BRACE) & Repeat(member_declaration) & \
     OperatorParser(R_BRACE) & OperatorParser(SEMICOLON)
 
-declaration_or_definition = struct_declaration #| union_declaration | \
-    #enum_declaration |  typedef_declaration | function_declaration | \
-    #variable_declaration | function_definition
+union_declaration = \
+    KeywordParser(UNION) & SymbolsParser(IDENTIFIER) & \
+    OperatorParser(L_BRACE) & Repeat(member_declaration) & \
+    OperatorParser(R_BRACE) & OperatorParser(SEMICOLON)
 
-translation_unit = Repeat(declaration_or_definition)
+typedef_declaration = \
+    (KeywordParser(TYPEDEF) & type_specifier & declarator & \
+    OperatorParser(SEMICOLON)) | \
+    (KeywordParser(TYPEDEF) & SymbolsParser(IDENTIFIER) & \
+    declarator & OperatorParser(SEMICOLON));
+
+additional_declarator = \
+        OperatorParser(COMMA) & declarator
+
+variable_declaration = \
+    (type_specifier & declarator & ZeroOrMore(additional_declarator & \
+    OperatorParser(SEMICOLON)) |
+    (SymbolsParser(IDENTIFIER) & declarator & ZeroOrMore(additional_declarator) & \
+    OperatorParser(SEMICOLON)))
+
+enumerator = \
+    (SymbolsParser(IDENTIFIER) & OperatorParser(EQUAL) & SymbolsParser(CONSTANT)) | \
+    SymbolsParser(IDENTIFIER)
+enum_declaration = \
+    KeywordParser(ENUM) & SymbolsParser(IDENTIFIER) & OperatorParser(L_BRACE) & \
+    enumerator & ZeroOrMore(OperatorParser(COMMA) & enumerator) & \
+    OperatorParser(R_BRACE) & OperatorParser(SEMICOLON)
+
+declaration_or_definition = struct_declaration | union_declaration | \
+    typedef_declaration | variable_declaration | enum_declaration
+    # To be added to the grammar:
+    #function_declaration | function_definition
+
+translation_unit = AllTokensConsumed(Repeat(declaration_or_definition))
 
 result = translation_unit(tokens, 0)
 print(result)
