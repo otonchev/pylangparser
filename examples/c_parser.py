@@ -180,9 +180,16 @@ func2(const int p, char t) {
     return f;
   }
 
+  if (5 == 6) {
+  } else {
+    p = 1;
+  }
+
   return p = 6;
   /* FIXME: return (f == 5); */
-  /* FISME: return (f);*/
+  /* FIXME: return (f);*/
+  /* FIXME: if without braces */
+  /* FIXME: C style comment on multiple lines */
 }
 
 """
@@ -445,6 +452,10 @@ binop = \
     OperatorParser(AMPERSAND_AMPERSAND) | \
     OperatorParser(BAR_BAR)
 
+conditional_expression = \
+    (value & relop & value) | \
+    value
+
 simple_expression = \
     varname | \
     SymbolsParser(CONSTANT)
@@ -503,9 +514,12 @@ compound_statement = \
 
 statement = \
     compound_statement | \
-    (basic_statement & OperatorParser(SEMICOLON))
-#    if l_par conditional_expression r_par compound_statement |
-#    if l_par conditional_expression r_par [then_comp_stmt]:compound_statement else [else_comp_stmt]:compound_statement |
+    (basic_statement & OperatorParser(SEMICOLON)) | \
+    (OperatorParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
+        OperatorParser(R_PAR) & compound_statement & OperatorParser(ELSE) & \
+        compound_statement) | \
+    (OperatorParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
+        OperatorParser(R_PAR) & compound_statement)
 #    if l_par conditional_expression r_par semicolon else compound_statement |
 #    while l_par conditional_expression r_par compound_statement |
 #    do compound_statement while l_par conditional_expression r_par semicolon |
