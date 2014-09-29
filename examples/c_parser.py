@@ -214,12 +214,21 @@ func2(const int p, char t) {
     }
   }
 
-  return p = 6;
-  /* FIXME: return (f == 5); */
-  /* FIXME: return (f);*/
-  /* FIXME: if without braces */
+  switch (i) {
+    case 5:
+      break;
+    default:
+      break;
+  }
+
+  if (p == 5)
+    p = 5;
+  else
+    p = 6;
+
+  return (p == 5);
+
   /* FIXME: C style comment on multiple lines */
-  /* FIXME: switch without braces */
 }
 
 """
@@ -304,17 +313,20 @@ type_specifier = \
 
 def get_abstract_pointer():
     return abstract_pointer
-def get_abstract_array_declarator():
-    return abstract_array_declarator
+
+abstract_array_declarator_tail = \
+    OperatorParser(L_BRACKET) & \
+    SymbolsParser(CONSTANT) & \
+    OperatorParser(R_BRACKET)
+
 abstract_array_declarator = \
     (OperatorParser(L_BRACKET) & \
-        SymbolsParser(CONSTANT) & OperatorParser(R_BRACKET)) | \
+        SymbolsParser(CONSTANT) & OperatorParser(R_BRACKET) & \
+        Optional(abstract_array_declarator_tail)) | \
     (OperatorParser(L_PAR) & RecursiveParser(get_abstract_pointer) & \
         OperatorParser(R_PAR) & OperatorParser(L_BRACKET) & \
-        SymbolsParser(CONSTANT) & OperatorParser(R_BRACKET)) | \
-    (RecursiveParser(get_abstract_array_declarator) & \
-        OperatorParser(L_BRACKET) & SymbolsParser(CONSTANT) & \
-        OperatorParser(R_BRACKET))
+        SymbolsParser(CONSTANT) & OperatorParser(R_BRACKET) & \
+        Optional(abstract_array_declarator_tail))
 
 def get_parameter_list():
     return parameter_list
@@ -418,6 +430,7 @@ enum_declaration = \
 #
 # function declaration
 #
+
 def get_pointer_function():
     return pointer_function
 
@@ -585,6 +598,9 @@ default_statement = \
         OperatorParser(L_BRACE) & ZeroOrMore(RecursiveParser(get_statement)) & \
         Optional(RecursiveParser(get_stop_statement)) & \
         OperatorParser(R_BRACE)) | \
+    (KeywordParser(DEFAULT) & OperatorParser(COLON) & \
+        ZeroOrMore(RecursiveParser(get_statement)) & \
+        Optional(RecursiveParser(get_stop_statement))) | \
     (KeywordParser(DEFAULT) & OperatorParser(COLON))
 
 case_statement = \
@@ -592,6 +608,9 @@ case_statement = \
         OperatorParser(L_BRACE) & ZeroOrMore(RecursiveParser(get_statement)) & \
         Optional(RecursiveParser(get_stop_statement)) & \
         OperatorParser(R_BRACE)) | \
+    (KeywordParser(CASE) & SymbolsParser(CONSTANT) & OperatorParser(COLON) & \
+        ZeroOrMore(RecursiveParser(get_statement)) & \
+        Optional(RecursiveParser(get_stop_statement))) | \
     (KeywordParser(CASE) & SymbolsParser(CONSTANT) & OperatorParser(COLON))
 
 case_statements = \
@@ -605,10 +624,24 @@ statement = \
         OperatorParser(R_PAR) & OperatorParser(SEMICOLON) & \
         OperatorParser(ELSE) & compound_statement) | \
     (OperatorParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
+        OperatorParser(R_PAR) & OperatorParser(SEMICOLON) & \
+        OperatorParser(ELSE) & compound_statement) | \
+    (OperatorParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
+        OperatorParser(R_PAR) & RecursiveParser(get_statement) & \
+        OperatorParser(ELSE) & compound_statement) | \
+    (OperatorParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
         OperatorParser(R_PAR) & compound_statement & OperatorParser(ELSE) & \
         compound_statement) | \
     (OperatorParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
+        OperatorParser(R_PAR) & compound_statement & OperatorParser(ELSE) & \
+        RecursiveParser(get_statement)) | \
+    (OperatorParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
+        OperatorParser(R_PAR) & RecursiveParser(get_statement) & \
+        OperatorParser(ELSE) & RecursiveParser(get_statement)) | \
+    (OperatorParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
         OperatorParser(R_PAR) & compound_statement) | \
+    (OperatorParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
+        OperatorParser(R_PAR) & RecursiveParser(get_statement)) | \
     (OperatorParser(WHILE) & OperatorParser(L_PAR) & conditional_expression & \
         OperatorParser(R_PAR) & compound_statement) | \
     (OperatorParser(DO) & compound_statement & OperatorParser(WHILE) & \
@@ -624,7 +657,6 @@ statement = \
 dead_code = \
     (KeywordParser(BREAK) & OperatorParser(SEMICOLON)) | \
     (KeywordParser(CONTINUE) & OperatorParser(SEMICOLON)) | \
-    (KeywordParser(RETURN) & statement & OperatorParser(SEMICOLON)) | \
     (KeywordParser(RETURN) & OperatorParser(SEMICOLON)) | \
     (KeywordParser(RETURN) & value & OperatorParser(SEMICOLON)) | \
     (KeywordParser(RETURN) & OperatorParser(L_PAR) & value & \
@@ -635,6 +667,8 @@ stop_statement = \
     (KeywordParser(BREAK) & OperatorParser(SEMICOLON) & \
         ZeroOrMore(dead_code)) | \
     (KeywordParser(CONTINUE) & OperatorParser(SEMICOLON) & \
+        ZeroOrMore(dead_code)) | \
+    (KeywordParser(RETURN) & binary_expression & OperatorParser(SEMICOLON) & \
         ZeroOrMore(dead_code)) | \
     (KeywordParser(RETURN) & OperatorParser(SEMICOLON) & \
         ZeroOrMore(dead_code)) | \
