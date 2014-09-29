@@ -1,5 +1,5 @@
 # Example usage of the Parser. The test parses a C program
-# and validates the grammar. The simplified C grammer used in the example
+# and validates the grammar. The simplified C grammar used in the example
 # is taken from the SableCC project. See c_parser_grammar.txt for more
 # details.
 #
@@ -185,11 +185,41 @@ func2(const int p, char t) {
     p = 1;
   }
 
+  while (5 == 6) {
+    p = 1;
+  }
+
+  do {
+    p = 1;
+  } while (5 == 6);
+
+  for (;;) {
+    p = 1;
+    break;
+  }
+
+  for (i = 5; i < 5; i++) {
+    p = 1;
+    if (i == 4) {
+      break;
+    }
+  }
+
+  switch (i) {
+    case 5: {
+      break;
+    }
+    default: {
+      break;
+    }
+  }
+
   return p = 6;
   /* FIXME: return (f == 5); */
   /* FIXME: return (f);*/
   /* FIXME: if without braces */
   /* FIXME: C style comment on multiple lines */
+  /* FIXME: switch without braces */
 }
 
 """
@@ -253,23 +283,38 @@ union_specifier = KeywordParser(UNION) & SymbolsParser(IDENTIFIER)
 
 enum_specifier = KeywordParser(ENUM) & SymbolsParser(IDENTIFIER)
 
-type_specifier = void_specifier | char_specifier | signed_char_specifier | \
-    signed_short_specifier | signed_int_specifier | signed_long_specifier | \
-    unsigned_char_specifier | unsigned_short_specifier | unsigned_int_specifier | \
-    unsigned_long_specifier | float_specifier | double_specifier | \
-    long_double_specifier | struct_specifier | union_specifier | enum_specifier | \
+type_specifier = \
+    void_specifier | \
+    char_specifier | \
+    signed_char_specifier | \
+    signed_short_specifier | \
+    signed_int_specifier | \
+    signed_long_specifier | \
+    unsigned_char_specifier | \
+    unsigned_short_specifier | \
+    unsigned_int_specifier | \
+    unsigned_long_specifier | \
+    float_specifier | \
+    double_specifier | \
+    long_double_specifier | \
+    struct_specifier | \
+    union_specifier | \
+    enum_specifier | \
     SymbolsParser(IDENTIFIER)
 
 def get_abstract_pointer():
     return abstract_pointer
 def get_abstract_array_declarator():
     return abstract_array_declarator
-abstract_array_declarator = (OperatorParser(L_BRACKET) & \
-    SymbolsParser(CONSTANT) & OperatorParser(R_BRACKET)) | \
+abstract_array_declarator = \
+    (OperatorParser(L_BRACKET) & \
+        SymbolsParser(CONSTANT) & OperatorParser(R_BRACKET)) | \
     (OperatorParser(L_PAR) & RecursiveParser(get_abstract_pointer) & \
-    OperatorParser(R_PAR) & OperatorParser(L_BRACKET) & SymbolsParser(CONSTANT) & \
-    OperatorParser(R_BRACKET)) | (RecursiveParser(get_abstract_array_declarator) & \
-    OperatorParser(L_BRACKET) & SymbolsParser(CONSTANT) & OperatorParser(R_BRACKET))
+        OperatorParser(R_PAR) & OperatorParser(L_BRACKET) & \
+        SymbolsParser(CONSTANT) & OperatorParser(R_BRACKET)) | \
+    (RecursiveParser(get_abstract_array_declarator) & \
+        OperatorParser(L_BRACKET) & SymbolsParser(CONSTANT) & \
+        OperatorParser(R_BRACKET))
 
 def get_parameter_list():
     return parameter_list
@@ -294,8 +339,8 @@ parameter_declaration = (type_specifier & RecursiveParser(get_declarator)) | \
     RecursiveParser(get_declarator)) | (SymbolsParser(IDENTIFIER) & \
     abstract_declarator)
 
-parameter_list = parameter_declaration & Optional(Repeat(OperatorParser(COMMA) & \
-    parameter_declaration))
+parameter_list = parameter_declaration & \
+    Optional(Repeat(OperatorParser(COMMA) & parameter_declaration))
 
 def get_pointer():
     return pointer
@@ -304,10 +349,11 @@ array_declarator_tail = \
     OperatorParser(R_BRACKET)
 array_declarator = (SymbolsParser(IDENTIFIER) & OperatorParser(L_BRACKET) & \
     Optional(SymbolsParser(CONSTANT)) & OperatorParser(R_BRACKET) & \
-    ZeroOrMore(array_declarator_tail)) | \
-    (OperatorParser(L_PAR) & RecursiveParser(get_pointer) & OperatorParser(R_PAR) & \
-    OperatorParser(L_BRACKET) & Optional(SymbolsParser(CONSTANT)) & \
-    OperatorParser(R_BRACKET) & ZeroOrMore(array_declarator_tail))
+        ZeroOrMore(array_declarator_tail)) | \
+    (OperatorParser(L_PAR) & RecursiveParser(get_pointer) & \
+        OperatorParser(R_PAR) & OperatorParser(L_BRACKET) & \
+        Optional(SymbolsParser(CONSTANT)) & OperatorParser(R_BRACKET) & \
+        ZeroOrMore(array_declarator_tail))
 
 def get_function_pointer_declarator():
     return function_pointer_declarator
@@ -355,17 +401,18 @@ additional_declarator = \
 
 variable_declaration = \
     (type_specifier & declarator & ZeroOrMore(additional_declarator) & \
-    OperatorParser(SEMICOLON)) | \
-    (SymbolsParser(IDENTIFIER) & declarator & ZeroOrMore(additional_declarator) & \
-    OperatorParser(SEMICOLON))
+        OperatorParser(SEMICOLON)) | \
+    (SymbolsParser(IDENTIFIER) & declarator & \
+        ZeroOrMore(additional_declarator) & OperatorParser(SEMICOLON))
 
 enumerator = \
-    (SymbolsParser(IDENTIFIER) & OperatorParser(EQUAL) & SymbolsParser(CONSTANT)) | \
+    (SymbolsParser(IDENTIFIER) & OperatorParser(EQUAL) & \
+        SymbolsParser(CONSTANT)) | \
     SymbolsParser(IDENTIFIER)
 enum_declaration = \
-    KeywordParser(ENUM) & SymbolsParser(IDENTIFIER) & OperatorParser(L_BRACE) & \
-    enumerator & ZeroOrMore(OperatorParser(COMMA) & enumerator) & \
-    OperatorParser(R_BRACE) & OperatorParser(SEMICOLON)
+    KeywordParser(ENUM) & SymbolsParser(IDENTIFIER) & \
+    OperatorParser(L_BRACE) & enumerator & ZeroOrMore(OperatorParser(COMMA) & \
+    enumerator) & OperatorParser(R_BRACE) & OperatorParser(SEMICOLON)
 
 
 #
@@ -382,10 +429,10 @@ array_function_declarator = \
 direct_function_declarator = \
     array_function_declarator | \
     (SymbolsParser(IDENTIFIER) & OperatorParser(L_PAR) & \
-    ZeroOrMore(parameter_list) & OperatorParser(R_PAR)) | \
+        ZeroOrMore(parameter_list) & OperatorParser(R_PAR)) | \
     (OperatorParser(L_PAR) & RecursiveParser(get_pointer_function) & \
-    OperatorParser(R_PAR) & OperatorParser(L_PAR) & \
-    ZeroOrMore(parameter_list) & OperatorParser(R_PAR))
+        OperatorParser(R_PAR) & OperatorParser(L_PAR) & \
+        ZeroOrMore(parameter_list) & OperatorParser(R_PAR))
 
 pointer_function = \
     (OperatorParser(STAR) & direct_function_declarator) | \
@@ -396,7 +443,8 @@ function_declarator = \
 
 function_declaration = \
     (type_specifier & function_declarator & OperatorParser(SEMICOLON)) | \
-    (SymbolsParser(IDENTIFIER) & function_declarator & OperatorParser(SEMICOLON))
+    (SymbolsParser(IDENTIFIER) & function_declarator & \
+        OperatorParser(SEMICOLON))
 
 #
 # function definition
@@ -452,6 +500,14 @@ binop = \
     OperatorParser(AMPERSAND_AMPERSAND) | \
     OperatorParser(BAR_BAR)
 
+prefop = \
+    OperatorParser(PLUS_PLUS) | \
+    OperatorParser(MINUS_MINUS)
+
+postfop = \
+    OperatorParser(PLUS_PLUS) | \
+    OperatorParser(MINUS_MINUS)
+
 conditional_expression = \
     (value & relop & value) | \
     value
@@ -461,8 +517,10 @@ simple_expression = \
     SymbolsParser(CONSTANT)
 
 binary_expression = \
-    (OperatorParser(L_PAR) & SymbolsParser(IDENTIFIER) & binop & value & OperatorParser(R_PAR)) | \
-    (OperatorParser(L_PAR) & SymbolsParser(CONSTANT) & binop & value & OperatorParser(R_PAR)) | \
+    (OperatorParser(L_PAR) & SymbolsParser(IDENTIFIER) & binop & value & \
+        OperatorParser(R_PAR)) | \
+    (OperatorParser(L_PAR) & SymbolsParser(CONSTANT) & binop & value & \
+        OperatorParser(R_PAR)) | \
     (OperatorParser(L_PAR) & value & binop & value & OperatorParser(R_PAR))
 
 arglist = \
@@ -474,13 +532,17 @@ call_expression = \
 
 unary_expression = \
     simple_expression | \
-    (OperatorParser(L_PAR) & OperatorParser(STAR) & SymbolsParser(IDENTIFIER) & OperatorParser(R_PAR)) | \
-    (OperatorParser(L_PAR) & OperatorParser(AMPERSAND) & varname & OperatorParser(R_PAR)) | \
+    (OperatorParser(L_PAR) & OperatorParser(STAR) & \
+        SymbolsParser(IDENTIFIER) & OperatorParser(R_PAR)) | \
+    (OperatorParser(L_PAR) & OperatorParser(AMPERSAND) & varname & \
+        OperatorParser(R_PAR)) | \
     call_expression | \
     (unop & SymbolsParser(IDENTIFIER)) | \
-    (OperatorParser(L_PAR) & unop & SymbolsParser(IDENTIFIER) & OperatorParser(R_PAR)) | \
+    (OperatorParser(L_PAR) & unop & SymbolsParser(IDENTIFIER) & \
+        OperatorParser(R_PAR)) | \
     (OperatorParser(L_PAR) & type_name & OperatorParser(R_PAR) & varname) | \
-    (OperatorParser(L_PAR) & type_name & OperatorParser(R_PAR) & SymbolsParser(CONSTANT))
+    (OperatorParser(L_PAR) & type_name & OperatorParser(R_PAR) & \
+        SymbolsParser(CONSTANT))
 
 rhs = \
     binary_expression | \
@@ -488,21 +550,27 @@ rhs = \
 
 modify_expression = \
     (varname & OperatorParser(EQUAL) & rhs) | \
-    (OperatorParser(L_PAR) & OperatorParser(STAR) & SymbolsParser(IDENTIFIER) & \
-        OperatorParser(R_PAR) & OperatorParser(EQUAL) & rhs)
+    (varname & postfop) | \
+    (prefop & varname) | \
+    (OperatorParser(L_PAR) & OperatorParser(STAR) & \
+        SymbolsParser(IDENTIFIER) & OperatorParser(R_PAR) & \
+        OperatorParser(EQUAL) & rhs)
 
 basic_statement = \
     call_expression | \
     modify_expression | \
     simple_expression | \
-    (OperatorParser(L_PAR) & OperatorParser(STAR) & SymbolsParser(IDENTIFIER) & \
-        OperatorParser(R_PAR)) | \
+    (OperatorParser(L_PAR) & OperatorParser(STAR) & \
+        SymbolsParser(IDENTIFIER) & OperatorParser(R_PAR)) | \
     (OperatorParser(L_PAR) & OperatorParser(AMPERSAND) & varname & \
         OperatorParser(R_PAR)) | \
     (unop & SymbolsParser(IDENTIFIER)) | \
-    (OperatorParser(L_PAR) & unop & SymbolsParser(IDENTIFIER) & OperatorParser(R_PAR)) | \
-    (OperatorParser(L_PAR) & type_name & OperatorParser(R_PAR) & varname) | \
-    (OperatorParser(L_PAR) & type_name & OperatorParser(R_PAR) & SymbolsParser(CONSTANT))
+    (OperatorParser(L_PAR) & unop & SymbolsParser(IDENTIFIER) & \
+        OperatorParser(R_PAR)) | \
+    (OperatorParser(L_PAR) & type_name & OperatorParser(R_PAR) & \
+        varname) | \
+    (OperatorParser(L_PAR) & type_name & OperatorParser(R_PAR) & \
+        SymbolsParser(CONSTANT))
 
 def get_statement():
     return statement
@@ -512,19 +580,46 @@ compound_statement = \
     OperatorParser(L_BRACE) & ZeroOrMore(RecursiveParser(get_statement)) & \
     Optional(RecursiveParser(get_stop_statement)) & OperatorParser(R_BRACE)
 
+default_statement = \
+    (KeywordParser(DEFAULT) & OperatorParser(COLON) & \
+        OperatorParser(L_BRACE) & ZeroOrMore(RecursiveParser(get_statement)) & \
+        Optional(RecursiveParser(get_stop_statement)) & \
+        OperatorParser(R_BRACE)) | \
+    (KeywordParser(DEFAULT) & OperatorParser(COLON))
+
+case_statement = \
+    (KeywordParser(CASE) & SymbolsParser(CONSTANT) & OperatorParser(COLON) & \
+        OperatorParser(L_BRACE) & ZeroOrMore(RecursiveParser(get_statement)) & \
+        Optional(RecursiveParser(get_stop_statement)) & \
+        OperatorParser(R_BRACE)) | \
+    (KeywordParser(CASE) & SymbolsParser(CONSTANT) & OperatorParser(COLON))
+
+case_statements = \
+    OperatorParser(L_BRACE) & Repeat(case_statement) & \
+        Optional(default_statement) & OperatorParser(R_BRACE)
+
 statement = \
     compound_statement | \
     (basic_statement & OperatorParser(SEMICOLON)) | \
     (OperatorParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
+        OperatorParser(R_PAR) & OperatorParser(SEMICOLON) & \
+        OperatorParser(ELSE) & compound_statement) | \
+    (OperatorParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
         OperatorParser(R_PAR) & compound_statement & OperatorParser(ELSE) & \
         compound_statement) | \
     (OperatorParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
-        OperatorParser(R_PAR) & compound_statement)
-#    if l_par conditional_expression r_par semicolon else compound_statement |
-#    while l_par conditional_expression r_par compound_statement |
-#    do compound_statement while l_par conditional_expression r_par semicolon |
-#    for l_par [start]:basic_statement? [sc_one]:semicolon conditional_expression? [sc_two]:semicolon [iter]:basic_statement? r_par compound_statement |
-#    switch l_par value r_par case_statements
+        OperatorParser(R_PAR) & compound_statement) | \
+    (OperatorParser(WHILE) & OperatorParser(L_PAR) & conditional_expression & \
+        OperatorParser(R_PAR) & compound_statement) | \
+    (OperatorParser(DO) & compound_statement & OperatorParser(WHILE) & \
+        OperatorParser(L_PAR) & conditional_expression & \
+        OperatorParser(R_PAR) & OperatorParser(SEMICOLON)) | \
+    (OperatorParser(FOR) & OperatorParser(L_PAR) & Optional(basic_statement) & \
+        OperatorParser(SEMICOLON) & Optional(conditional_expression) & \
+        OperatorParser(SEMICOLON) & Optional(basic_statement) & \
+        OperatorParser(R_PAR) & compound_statement) | \
+    (OperatorParser(SWITCH) & OperatorParser(L_PAR) & value & \
+        OperatorParser(R_PAR) & case_statements)
 
 dead_code = \
     (KeywordParser(BREAK) & OperatorParser(SEMICOLON)) | \
@@ -537,12 +632,17 @@ dead_code = \
 
 stop_statement = \
     (KeywordParser(RETURN) & statement & ZeroOrMore(dead_code)) | \
-    (KeywordParser(BREAK) & OperatorParser(SEMICOLON) & ZeroOrMore(dead_code)) | \
-    (KeywordParser(CONTINUE) & OperatorParser(SEMICOLON) & ZeroOrMore(dead_code)) | \
-    (KeywordParser(RETURN) & OperatorParser(SEMICOLON) & ZeroOrMore(dead_code)) | \
-    (KeywordParser(RETURN) & value & OperatorParser(SEMICOLON) & ZeroOrMore(dead_code)) | \
-    (KeywordParser(RETURN) & OperatorParser(L_PAR) & value & OperatorParser(R_PAR) & \
-        OperatorParser(SEMICOLON) & ZeroOrMore(dead_code))
+    (KeywordParser(BREAK) & OperatorParser(SEMICOLON) & \
+        ZeroOrMore(dead_code)) | \
+    (KeywordParser(CONTINUE) & OperatorParser(SEMICOLON) & \
+        ZeroOrMore(dead_code)) | \
+    (KeywordParser(RETURN) & OperatorParser(SEMICOLON) & \
+        ZeroOrMore(dead_code)) | \
+    (KeywordParser(RETURN) & value & OperatorParser(SEMICOLON) & \
+        ZeroOrMore(dead_code)) | \
+    (KeywordParser(RETURN) & OperatorParser(L_PAR) & value & \
+        OperatorParser(R_PAR) & OperatorParser(SEMICOLON) & \
+        ZeroOrMore(dead_code))
 
 function_body = \
     OperatorParser(L_BRACE) & ZeroOrMore(variable_declaration) & \
