@@ -139,6 +139,8 @@ class Lexer:
     A lexer class. Extracts tokens from a file according to a pre-defined
     grammar
     """
+    C_STYLE_COMMENT = r'/\*([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+/'
+
     def __init__(self, token_matcher, ignore_chars=None):
         self.__token_matcher = token_matcher
         self.__ignore_chars = None
@@ -159,6 +161,12 @@ class Lexer:
         tokens = []
 
         while start + index <= len(input_text):
+
+            # ignore C style comments
+            m = re.match('^' + self.C_STYLE_COMMENT, input_text[start:], re.DOTALL)
+            if m:
+                start = start + m.end(0)
+                index = 1
 
             # check for tokens
             result = self.__token_matcher.matchToken(input_text[start:start + index])
@@ -456,14 +464,12 @@ class ParseTests(unittest.TestCase):
 	self.INT_IDENTIFIER = Symbols(r'[0-9]*')
 	self.STRING_IDENTIFIER = Symbols(r'\".*\"')
 
-	self.C_STYLE_COMMENT = Ignore(r'\/\*.*(\*/){,1}')
 	self.CPP_STYLE_COMMENT = Ignore(r'//.*\n')
 	self.MACROS = Ignore(r'\#.*\n')
 	self.IGNORE_CHARS = Ignore(r'[ \t\v\f]+')
 
         # group tokens into sub-groups
-        self.IGNORES = self.C_STYLE_COMMENT & self.CPP_STYLE_COMMENT & \
-            self.MACROS & self.IGNORE_CHARS
+        self.IGNORES = self.CPP_STYLE_COMMENT & self.MACROS & self.IGNORE_CHARS
 
         self.KEYWORDS = self.FOR & self.RETURN & self.IF
 
@@ -611,7 +617,7 @@ class ParseTests(unittest.TestCase):
         lexer = Lexer(self.TOKENS)
         tokens = lexer.parseTokens(source)
 
-        print tokens
+        #print tokens
 
         assignment = OperatorParser(self.ASSIGNMENT)
 
@@ -625,7 +631,7 @@ class ParseTests(unittest.TestCase):
 
         result = parser(tokens, 0)
         self.assertTrue(result)
-        print(result)
+        #print(result)
 
 def main():
     unittest.main()

@@ -96,7 +96,6 @@ STRING_IDENTIFIER = Symbols(r'\".*\"')
 CONSTANT = Symbols(r'[0-9]*')
 INT_CONSTANT = Symbols(r'[0-9]*')
 
-C_STYLE_COMMENT = Ignore(r'\/\*.*(\*/){,1}')
 CPP_STYLE_COMMENT = Ignore(r'\/\/[^\n]*')
 MACROS = Ignore(r'\#.*\n')
 IGNORE_CHARS = Ignore(r'[ \t\v\f]+')
@@ -113,7 +112,7 @@ CONST = Ignore(r'const')
 # if IDENTIFIER appears before CONST, the latter will never appear in the
 # result list as 'const' matches both tokens
 
-IGNORES = CONST & C_STYLE_COMMENT & CPP_STYLE_COMMENT & MACROS & IGNORE_CHARS
+IGNORES = CONST & CPP_STYLE_COMMENT & MACROS & IGNORE_CHARS
 
 KEYWORDS = AUTO & BREAK & CASE & ENUM & CONTINUE & DEFAULT & DO & ELSE & \
     EXTERN & FOR & GOTO & IF & REGISTER & RETURN & SIZEOF & STATIC & STRUCT & \
@@ -226,9 +225,11 @@ func2(const int p, char t) {
   else
     p = 6;
 
-  return (p == 5);
+  /*
+   * this is a multi-line comment
+   */
 
-  /* FIXME: C style comment on multiple lines */
+  return (p == 5);
 }
 
 """

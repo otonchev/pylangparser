@@ -60,13 +60,12 @@ IDENTIFIER = Symbols(r'[A-Za-z_]+[A-Za-z0-9_]*')
 INT_IDENTIFIER = Symbols(r'[0-9]*')
 STRING_IDENTIFIER = Symbols(r'\".*\"')
 
-C_STYLE_COMMENT = Ignore(r'\/\*.*(\*/){,1}')
 CPP_STYLE_COMMENT = Ignore(r'//.*\n')
 MACROS = Ignore(r'#.*\n')
 IGNORE_CHARS = Ignore(r'[ \t\v\f]+')
 
 # group tokens into sub-groups
-IGNORES = C_STYLE_COMMENT & CPP_STYLE_COMMENT & MACROS & IGNORE_CHARS
+IGNORES = CPP_STYLE_COMMENT & MACROS & IGNORE_CHARS
 
 KEYWORDS = AUTO & BREAK & CASE & ENUM & CONST & CONTINUE & DEFAULT & DO & ELSE & \
     EXTERN & FOR & GOTO & IF & REGISTER & RETURN & SIZEOF & STATIC & STRUCT & \
