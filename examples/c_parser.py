@@ -132,6 +132,12 @@ IDENTIFIERS = IDENTIFIER & CONSTANT & STRING_IDENTIFIER & INT_CONSTANT
 # join all token sub-groups
 TOKENS = IGNORES & KEYWORDS & OPERATORS & IDENTIFIERS
 
+#
+# list tokens to be IGNORED in the final AST
+#
+IgnoreTokensInAST(SEMICOLON & L_BRACE & R_BRACE & R_PAR & L_PAR & L_BRACKET & \
+    R_BRACKET)
+
 
 # our source code
 source = r"""
@@ -237,10 +243,12 @@ func2(const int p, char t) {
 # obtain a list of all tokens present in the source
 lexer = Lexer(TOKENS)
 tokens = lexer.parseTokens(source)
+print("-------\nTOKENS:\n-------")
 print(tokens)
 
-# define grammar
-
+#
+# define C grammar
+#
 void_specifier = KeywordParser(VOID)
 
 char_specifier = KeywordParser(CHAR)
@@ -393,16 +401,26 @@ member_declaration = type_specifier & declarator & OperatorParser(SEMICOLON)
 #              variable_declaration,
 #              function_definition
 #
+
+#
+# struct declaration
+#
 struct_declaration = \
     KeywordParser(STRUCT) & SymbolsParser(IDENTIFIER) & \
     OperatorParser(L_BRACE) & Repeat(member_declaration) & \
     OperatorParser(R_BRACE) & OperatorParser(SEMICOLON)
 
+#
+# union declaration
+#
 union_declaration = \
     KeywordParser(UNION) & SymbolsParser(IDENTIFIER) & \
     OperatorParser(L_BRACE) & Repeat(member_declaration) & \
     OperatorParser(R_BRACE) & OperatorParser(SEMICOLON)
 
+#
+# typedef declaration
+#
 typedef_declaration = \
     (KeywordParser(TYPEDEF) & type_specifier & declarator & \
     OperatorParser(SEMICOLON)) | \
@@ -412,6 +430,9 @@ typedef_declaration = \
 additional_declarator = \
         OperatorParser(COMMA) & declarator
 
+#
+# variable declaration
+#
 variable_declaration = \
     (type_specifier & declarator & ZeroOrMore(additional_declarator) & \
         OperatorParser(SEMICOLON)) | \
@@ -422,6 +443,9 @@ enumerator = \
     (SymbolsParser(IDENTIFIER) & OperatorParser(EQUAL) & \
         SymbolsParser(CONSTANT)) | \
     SymbolsParser(IDENTIFIER)
+#
+#  enum declaration
+#
 enum_declaration = \
     KeywordParser(ENUM) & SymbolsParser(IDENTIFIER) & \
     OperatorParser(L_BRACE) & enumerator & ZeroOrMore(OperatorParser(COMMA) & \
@@ -696,7 +720,11 @@ declaration_or_definition = \
     function_declaration | \
     function_definition
 
+#
+# translation unit will parse the whole program
+#
 translation_unit = AllTokensConsumed(Repeat(declaration_or_definition))
 
 result = translation_unit(tokens, 0)
+print("----\nAST:\n----")
 print(result)
