@@ -5,9 +5,9 @@
 # The grammars are defined directly into the Python code. For details,
 # check the unit tests and the examples.
 #
-# Note: the Parser is under development and is not fully committed
-# yet. It is possible to validate grammars but the AST is not correctly
-# built. However, the Lexer is fully functional.
+# Note: the Parser is still under development. The AST is not very
+# optimal, Documentation is not finished. New APIs for building custom
+# ASTs will be added soon. The Lexer is fully functional.
 #
 # Feel free to send suggestions, comments and patches to:
 #     Ognyan Tonchev (otonchev at gmail com)
