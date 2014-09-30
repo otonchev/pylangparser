@@ -268,7 +268,7 @@ class ParserResult:
     TokenParser's use this class to accumulate result from parsing the
     token list returned by the Lexer.
     """
-    def __init__(self, token, pos, instance=None):
+    def __init__(self, token, pos, id=0, instance=None):
         # __token:          is either a string, a ParserResult, or a tuple of
         #     ParserResult's
         # __position:       is the position of the next token in the lex list
@@ -277,6 +277,7 @@ class ParserResult:
         self.__token = token
         self.__position = pos
         self.__token_instance = instance
+        self.__id = 0
 
     def __repr__(self):
         if not self.__token_instance:
@@ -387,6 +388,19 @@ class ParserResult:
                     return value
         return None
 
+    def set_id(self, id):
+        """
+        this method is used for setting a unique id of the ParserResult,
+        check TokenParser.set_id() for details
+        """
+        self.__id = id
+
+    def get_id(self):
+        """
+        get the id of the ParserResult, check TokenParser.set_id() for details
+        """
+        return self.__id
+
 class TokenParser:
     """
     Base class for all token parsers used to build the AST.
@@ -397,6 +411,9 @@ class TokenParser:
     note the __call__ method below.
     The result from the parsing algorithm is accumulated in a ParserResult.
     """
+
+    def __init__(self):
+        self.__id = 0
 
     def __call__(self, tokens, pos):
         raise NotImplementedError("Method should be implemented")
@@ -410,6 +427,19 @@ class TokenParser:
     def __or__(self, right):
         return SelectParser(self, right)
 
+    def set_id(self, id):
+        """
+        this method is used for setting a unique id for a specific parser
+        so that the matched combination can easily be found in the result
+        AST. The same id will be set on the ParserResult.
+        """
+        self.__id = id
+        return self
+
+    def get_id(self):
+        """ get the id of the parser, check set_id() above """
+        return self.__id
+
 class CombineTwoParsers(TokenParser):
     """
     This class is used to combine two token parsers using the LSHIFT(<<)
@@ -422,6 +452,7 @@ class CombineTwoParsers(TokenParser):
     """
 
     def __init__(self, first, second):
+        TokenParser.__init__(self)
         self.first = first
         self.second = second
 
@@ -438,7 +469,7 @@ class CombineTwoParsers(TokenParser):
                     first_res.set_position(second_res.get_position())
                     return first_res
                 return ParserResult((first_res, second_res), \
-                    second_res.get_position())
+                    second_res.get_position(), self.get_id())
         return None
 
 class CombineManyParsers(TokenParser):
@@ -451,6 +482,7 @@ class CombineManyParsers(TokenParser):
     """
 
     def __init__(self, first, second):
+        TokenParser.__init__(self)
         self.parsers = []
         if isinstance(first, CombineManyParsers):
             self.parsers = self.parsers + first.parsers
@@ -472,7 +504,7 @@ class CombineManyParsers(TokenParser):
             if res.is_empty() or res.is_ignore():
                 continue
             result = result + (res,)
-        return ParserResult(result, pos)
+        return ParserResult(result, pos, self.get_id())
 
 class SelectParser(TokenParser):
     """
@@ -482,15 +514,20 @@ class SelectParser(TokenParser):
     """
 
     def __init__(self, first, second):
+        TokenParser.__init__(self)
         self.first = first
         self.second = second
 
     def __call__(self, tokens, pos):
         res = self.first(tokens, pos)
         if res:
+            if self.get_id() > 0:
+                res.set_id(self.get_id())
             return res
         res = self.second(tokens, pos)
         if res:
+            if self.get_id() > 0:
+                res.set_id(self.get_id())
             return res
         return None
 
@@ -500,6 +537,7 @@ class KeywordParser(TokenParser):
     """
 
     def __init__(self, token):
+        TokenParser.__init__(self)
         self.__token = token
 
     def __call__(self, tokens, pos):
@@ -507,7 +545,7 @@ class KeywordParser(TokenParser):
             return None
         (token, instance) = tokens[pos]
         if instance == self.__token:
-            return ParserResult(token, pos + 1, instance)
+            return ParserResult(token, pos + 1, self.get_id(), instance)
         return None
 
 class OperatorParser(TokenParser):
@@ -516,6 +554,7 @@ class OperatorParser(TokenParser):
     """
 
     def __init__(self, token):
+        TokenParser.__init__(self)
         self.__token = token
 
     def __call__(self, tokens, pos):
@@ -523,7 +562,7 @@ class OperatorParser(TokenParser):
             return None
         (token, instance) = tokens[pos]
         if instance == self.__token:
-            return ParserResult(token, pos + 1, instance)
+            return ParserResult(token, pos + 1, self.get_id(), instance)
         return None
 
 class SymbolsParser(TokenParser):
@@ -532,6 +571,7 @@ class SymbolsParser(TokenParser):
     """
 
     def __init__(self, instance):
+        TokenParser.__init__(self)
         self.__instance=instance
 
     def __call__(self, tokens, pos):
@@ -539,7 +579,7 @@ class SymbolsParser(TokenParser):
             return None
         (token, instance) = tokens[pos]
         if instance == self.__instance:
-            return ParserResult(token, pos + 1, instance)
+            return ParserResult(token, pos + 1, self.get_id(), instance)
         return None
 
 class Optional(TokenParser):
@@ -550,6 +590,7 @@ class Optional(TokenParser):
     """
 
     def __init__(self, parser):
+        TokenParser.__init__(self)
         self.__parser = parser
 
     def __call__(self, tokens, pos):
@@ -558,7 +599,7 @@ class Optional(TokenParser):
         result = self.__parser(tokens, pos)
         if result:
             return result
-        return ParserResult(None, pos)
+        return ParserResult(None, pos, self.get_id())
 
 class ZeroOrMore(TokenParser):
     """
@@ -568,6 +609,7 @@ class ZeroOrMore(TokenParser):
     """
 
     def __init__(self, parser):
+        TokenParser.__init__(self)
         self.__parser = parser
 
     def __call__(self, tokens, pos):
@@ -588,7 +630,7 @@ class ZeroOrMore(TokenParser):
                     results = (results, result)
         if results and isinstance(results, ParserResult):
             return results
-        return ParserResult(results, pos)
+        return ParserResult(results, pos, self.get_id())
 
 class Repeat(TokenParser):
     """
@@ -597,6 +639,7 @@ class Repeat(TokenParser):
     """
 
     def __init__(self, parser):
+        TokenParser.__init__(self)
         self.__parser = parser
 
     def __call__(self, tokens, pos):
@@ -628,6 +671,7 @@ class AllTokensConsumed(TokenParser):
     is desired.
     """
     def __init__(self, parser):
+        TokenParser.__init__(self)
         self.__parser = parser
 
     def __call__(self, tokens, pos):
@@ -658,6 +702,7 @@ class RecursiveParser(TokenParser):
     """
 
     def __init__(self, get_parser_func):
+        TokenParser.__init__(self)
         self.__get_parser = get_parser_func
 
     def __call__(self, tokens, pos):
