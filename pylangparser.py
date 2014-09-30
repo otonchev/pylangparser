@@ -273,10 +273,33 @@ class ParserResult:
 
     def __repr__(self):
         if not self.__token_instance:
-            return '(\'%s\', pos: %d)' % (self.__token, self.__position)
+            if isinstance(self.__token, tuple):
+               return '((%s, %s))' % self.__token
+            else:
+               return '(%s)' % self.__token
         else:
-            return '(\'%s\', pos: %d, instance: %s)' % (self.__token, \
-                self.__position, self.__token_instance)
+            if isinstance(self.__token, tuple):
+                raise TypeError("value must be str")
+            return '(%s, instance: %s)' % (self.__token, \
+                self.__token_instance)
+
+    def __pretty_print(self, tokens, depth=0):
+
+        if isinstance(self.__token, str):
+            print("%s%s" % (' ' * depth, self.__token))
+        else:
+            if isinstance(tokens, tuple):
+                print("%s{" % (' ' * depth))
+                (left, right) = tokens
+                self.__pretty_print(left, depth + 1)
+                self.__pretty_print(right, depth + 1)
+                print("%s}" % (' ' * depth))
+            else:
+                tokens.pretty_print(depth + 1)
+
+    def pretty_print(self, depth=0):
+        """ Prints a human readable version of ParserResult """
+        self.__pretty_print(self.__token, depth)
 
     def get_position(self):
         """ get the position of the next token in the list """
@@ -295,7 +318,7 @@ class ParserResult:
         return self.__token
 
     def is_empty(self):
-        """ check if ParseResult contains empty token """
+        """ check if ParserResult contains empty token """
         return (self.__token == None)
 
     def is_ignore(self):
@@ -704,6 +727,7 @@ class ParseTests(unittest.TestCase):
         result = parser(tokens, 0)
         self.assertTrue(result)
         print(result)
+        result.pretty_print()
 
     def testRecursiveParser2(self):
 
