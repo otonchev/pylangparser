@@ -49,13 +49,16 @@ class ParseException(Exception):
     def __str__( self ):
         return "line: %d, message: %s" % (self.__line, self.__message)
 
-class TokenMatcher():
-    """ Interface for extracting tokens from a text """
+class TokenIterator():
+    """ Common interface for classes that want to iterate tokens """
 
     def _get_tokens(self):
         raise NotImplementedError("Method should be implemented")
 
-    def matchToken(self, input_string):
+class TokenMatcher(TokenIterator):
+    """ Interface for extracting tokens from a text """
+
+    def match_token(self, input_string):
         """ Checks whether input_string is a valid token """
         for token in self._get_tokens():
 
@@ -69,7 +72,18 @@ class TokenMatcher():
                     return token
         return None
 
-class TokenContainer(TokenMatcher):
+class TokenSetter(TokenIterator):
+    """ Interface for setting a property on a group of tokens """
+
+    def set_token(self, tokens, set_func, set_func_data):
+
+        if isinstance(tokens, TokenContainer):
+            for token in self._get_tokens():
+                set_func(token, set_func_data)
+        else:
+            raise TypeError("argument must be TokenContainer")
+
+class TokenContainer(TokenMatcher, TokenSetter):
     """ Interface for grouping tokens. Contains a list of grouped tokens """
 
     def __init__(self, obj):
@@ -98,19 +112,38 @@ class Token():
 
     def __init__(self, pattern):
         self.__pattern = pattern
+        self.__ignore_ast = False
         self._ignore = False
         self._autoescape = False
 
     def get_pattern(self):
+        """ Get the pattern for this token """
         return self.__pattern
 
     def is_ignore(self):
+        """
+        Check if token should be ignored when building the list of tokens
+        which a Lexer produces
+        """
         return self._ignore
 
     def is_autoescape(self):
+        """
+        Check if pattern should be autoescaped before matching it with a
+        string
+        """
         return self._autoescape
 
+    def set_ignore_ast(self, value):
+        """ Set whether the Token should be ignored when building the AST """
+        self.__ignore_ast = value
+
+    def get_ignore_ast(self):
+        """ Check whether the Token will be ignored when building the AST """
+        return self.__ignore_ast
+
     def __and__(self, right):
+        """ Overriding operator & allows for grouping tokens together """
         return TokenContainer(self) & right
 
 class Keyword(Token):
@@ -141,9 +174,8 @@ class Lexer:
     """
     C_STYLE_COMMENT = r'/\*([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+/'
 
-    def __init__(self, token_matcher, ignore_chars=None):
+    def __init__(self, token_matcher):
         self.__token_matcher = token_matcher
-        self.__ignore_chars = None
 
     def __findLineNumber(self, input_text, pos):
         return input_text.count("\n", 0, pos) + 1
@@ -163,13 +195,15 @@ class Lexer:
         while start + index <= len(input_text):
 
             # ignore C style comments
-            m = re.match('^' + self.C_STYLE_COMMENT, input_text[start:], re.DOTALL)
+            m = re.match('^' + self.C_STYLE_COMMENT, input_text[start:], \
+                re.DOTALL)
             if m:
                 start = start + m.end(0)
                 index = 1
 
             # check for tokens
-            result = self.__token_matcher.matchToken(input_text[start:start + index])
+            result = \
+                self.__token_matcher.match_token(input_text[start:start + index])
             if result:
                 # remember that we got a match
                 match = result
@@ -200,25 +234,67 @@ class Lexer:
 
         return tokens
 
+def IgnoreTokensInAST(tokens):
+    """
+    specify which tokens should be ignored in the AST. Argument can be
+    a simple token or a group of tokens.
+
+    Example:
+
+    IgnoreTokensInAST(SEMICOLON & LBRACE & RBRACE)
+
+    In this case ';', '{' and '}' will not be present in the final AST
+
+    Or:
+
+    IgnoreTokensInAST(SEMICOLON)
+
+    In this case ';' will not be present in the final AST
+
+    """
+    if isinstance(tokens, TokenContainer):
+        tokens.set_token(tokens, Token.set_ignore_ast, True)
+    else:
+        tokens.set_ignore_ast(True)
+
 class ParserResult:
     """
     TokenParser's use this class to accumulate result from parsing the
     token list returned by the Lexer
     """
-    def __init__(self, token, pos):
+    def __init__(self, token, pos, instance=None):
         self.__token = token
         self.__position = pos
+        self.__token_instance = instance
 
     def __repr__(self):
-        return '(%s, %d)' % (self.__token, self.__position)
+        return '(\'%s\', pos: %d)' % (self.__token, self.__position)
 
     def get_position(self):
         """ get the position of the next token in the list """
         return self.__position
 
+    def set_position(self, pos):
+        """
+        set the position of the next token in the list. This function
+        is normally used when we are ignoring tokens when building the
+        AST.
+        """
+        self.__position = pos
+
     def get_token(self):
         """ get the token of this ParserResult """
         return self.__token
+
+    def is_empty(self):
+        """ check if ParseResult contains empty token """
+        return (self.__token == None)
+
+    def is_ignore(self):
+        if self.__token_instance and \
+            isinstance(self.__token_instance, Token):
+            return self.__token_instance.get_ignore_ast()
+        return False
 
 class TokenParser:
     """
@@ -256,6 +332,13 @@ class CombineParsers(TokenParser):
         if first_res:
             second_res = self.second(tokens, first_res.get_position())
             if second_res:
+                if first_res.is_empty() or first_res.is_ignore():
+                    return second_res
+                if second_res.is_empty() or second_res.is_ignore():
+                    # we are ignoring second result, update next tokens
+                    # position in first result
+                    first_res.set_position(second_res.get_position())
+                    return first_res
                 return ParserResult((first_res, second_res), \
                     second_res.get_position())
         return None
@@ -293,7 +376,7 @@ class KeywordParser(TokenParser):
             return None
         (token, instance) = tokens[pos]
         if instance == self.__token:
-            return ParserResult(token, pos + 1)
+            return ParserResult(token, pos + 1, instance)
         return None
 
 class OperatorParser(TokenParser):
@@ -309,7 +392,7 @@ class OperatorParser(TokenParser):
             return None
         (token, instance) = tokens[pos]
         if instance == self.__token:
-            return ParserResult(token, pos + 1)
+            return ParserResult(token, pos + 1, instance)
         return None
 
 class SymbolsParser(TokenParser):
@@ -325,7 +408,7 @@ class SymbolsParser(TokenParser):
             return None
         (token, instance) = tokens[pos]
         if instance == self.__instance:
-            return ParserResult(token, pos + 1)
+            return ParserResult(token, pos + 1, instance)
         return None
 
 class Optional(TokenParser):
@@ -449,7 +532,7 @@ class ParseTests(unittest.TestCase):
         self.IF = Keyword(r'if')
 
 	self.COMMA = Operator(r',')
-	self.COLON = Operator(r';')
+	self.SEMICOLON = Operator(r';')
 	self.ASSIGNMENT = Operator(r'=')
 	self.LBRACKET = Operator(r'(')
 	self.RBRACKET = Operator(r')')
@@ -473,7 +556,7 @@ class ParseTests(unittest.TestCase):
 
         self.KEYWORDS = self.FOR & self.RETURN & self.IF
 
-        self.OPERATORS = self.COMMA & self.COLON & self.ASSIGNMENT & \
+        self.OPERATORS = self.COMMA & self.SEMICOLON & self.ASSIGNMENT & \
             self.LBRACKET & self.RBRACKET & self.LBRACE & self.RBRACE & \
             self.AND & self.POINTER & self.PP & self.LE
 
@@ -527,16 +610,16 @@ class ParseTests(unittest.TestCase):
         self.__checkEntry("{", self.LBRACE, tokens[6])
         self.__checkEntry("int", self.IDENTIFIER, tokens[7])
         self.__checkEntry("c", self.IDENTIFIER, tokens[8])
-        self.__checkEntry(";", self.COLON, tokens[9])
+        self.__checkEntry(";", self.SEMICOLON, tokens[9])
         self.__checkEntry("long", self.IDENTIFIER, tokens[10])
         self.__checkEntry("result", self.IDENTIFIER, tokens[11])
         self.__checkEntry("=", self.ASSIGNMENT, tokens[12])
         self.__checkEntry("1", self.INT_IDENTIFIER, tokens[13])
-        self.__checkEntry(";", self.COLON, tokens[14])
-        self.__checkEntry(";", self.COLON, tokens[33])
+        self.__checkEntry(";", self.SEMICOLON, tokens[14])
+        self.__checkEntry(";", self.SEMICOLON, tokens[33])
         self.__checkEntry("return", self.RETURN, tokens[34])
         self.__checkEntry("result", self.IDENTIFIER, tokens[35])
-        self.__checkEntry(";", self.COLON, tokens[36])
+        self.__checkEntry(";", self.SEMICOLON, tokens[36])
         self.__checkEntry("}", self.RBRACE, tokens[37])
 
     def testParser(self):
@@ -553,7 +636,7 @@ class ParseTests(unittest.TestCase):
         tokens = lexer.parseTokens(source)
 
         parser = AllTokensConsumed(KeywordParser(self.RETURN) & \
-            SymbolsParser(self.INT_IDENTIFIER) & OperatorParser(self.COLON))
+            SymbolsParser(self.INT_IDENTIFIER) & OperatorParser(self.SEMICOLON))
         result = parser(tokens, 0)
         self.assertTrue(result)
         #print(result)
@@ -582,15 +665,21 @@ class ParseTests(unittest.TestCase):
         if (5) {
           if (5) {
             if (5) {
+              return;
             }
           }
         }
 
         """
 
+        IgnoreTokensInAST(self.SEMICOLON & self.LBRACE & self.RBRACE & \
+            self.RBRACKET & self.LBRACKET)
+
         # obtain a list of all tokens present in the source
         lexer = Lexer(self.TOKENS)
         tokens = lexer.parseTokens(source)
+
+        print tokens
 
         def return_parser():
             return parser
@@ -598,11 +687,12 @@ class ParseTests(unittest.TestCase):
         parser = KeywordParser(self.IF) & OperatorParser(self.LBRACKET) & \
             SymbolsParser(self.INT_IDENTIFIER) & OperatorParser(self.RBRACKET) & \
             OperatorParser(self.LBRACE) & Optional(RecursiveParser(return_parser)) & \
+            Optional(KeywordParser(self.RETURN) & OperatorParser(self.SEMICOLON)) & \
             OperatorParser(self.RBRACE)
         
         result = parser(tokens, 0)
         self.assertTrue(result)
-        #print(result)
+        print(result)
 
     def testRecursiveParser2(self):
 
