@@ -728,4 +728,45 @@ translation_unit = AllTokensConsumed(Repeat(declaration_or_definition))
 result = translation_unit(tokens, 0)
 print("----\nAST:\n----")
 print(result)
+print("--------------\nHumanized AST:\n--------------")
 result.pretty_print()
+
+print("\n------subgroup 1------")
+group = result.get_sub_group(1)
+group.pretty_print()
+
+print("\n------subgroup 2------")
+group = result.get_sub_group(2)
+group.pretty_print()
+
+print("\n------subgroup 3------")
+group = result.get_sub_group(3)
+group.pretty_print()
+
+print("\n------subgroup 4------")
+group = result.get_sub_group(4)
+group.pretty_print()
+
+print("\n------subgroup 5------")
+group = result.get_sub_group(5)
+group.pretty_print()
+
+print("\n------subgroup 6------")
+group = result.get_sub_group(6)
+group.pretty_print()
+
+print("\n------subgroup 7------")
+group = result.get_sub_group(7)
+group.pretty_print()
+
+print("\n------subgroup 7.1------")
+subgroup = group.get_sub_group(1)
+subgroup.pretty_print()
+
+print("\n------subgroup 7.2------")
+subgroup = group.get_sub_group(2)
+subgroup.pretty_print()
+
+print("\n------subgroup 7.3------")
+subgroup = group.get_sub_group(3)
+subgroup.pretty_print()

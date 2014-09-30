@@ -25,8 +25,9 @@
 # The grammars are defined directly into the Python code. For details,
 # check the unit tests and the examples.
 #
-# Note: the Parser is under development and is not fully committed
-# yet. However, the Lexer is fully functional.
+# Note: the Parser is functional but still under development.
+# Documentation is not complete yet. New APIs for building custom ASTs
+# will be added soon.
 #
 
 __version__ = "0.1"
@@ -265,9 +266,14 @@ def IgnoreTokensInAST(tokens):
 class ParserResult:
     """
     TokenParser's use this class to accumulate result from parsing the
-    token list returned by the Lexer
+    token list returned by the Lexer.
     """
     def __init__(self, token, pos, instance=None):
+        # __token:          is either a string, a ParserResult, or a tuple of
+        #     ParserResult's
+        # __position:       is the position of the next token in the lex list
+        # __token_instance: is a Token instance (Keyword, Symbols, Operator, etc).
+        #     For complex tokens such as touple or ParserResult it is set to None
         self.__token = token
         self.__position = pos
         self.__token_instance = instance
@@ -311,7 +317,19 @@ class ParserResult:
         return results
 
     def pretty_print(self, *args, **kwargs):
-        """ use Data pretty printer to print AST in human readable format """
+        """
+        use Data pretty printer to print AST in human readable format
+
+        Example output:
+
+        [['for'],
+         [['i'], ['='], ['5']],
+         [['i'], ['<'], ['5']],
+         [['i'], ['++']],
+          [[[['p'], ['='], ['1']]],
+          [['if'], [['i'], ['=='], ['4']], [['break']]]
+        ]]
+        """
         pprint.pprint(self.to_list(), *args, **kwargs)
 
     def get_position(self):
@@ -321,13 +339,24 @@ class ParserResult:
     def set_position(self, pos):
         """
         set the position of the next token in the list. This function
-        is normally used when we are ignoring tokens when building the
-        AST.
+        is normally used by parser when building AST and ignoring tokens.
         """
         self.__position = pos
 
     def get_token(self):
-        """ get the token of this ParserResult """
+        """
+        get the token of this ParserResult. It is either a string, a single
+        ParserResult or a tuple of ParserResult's
+        """
+        return self.__token
+
+    def get_instance(self):
+        """
+        get the instance for the token in the ParserResult. Note that instance
+        is only set if token is a string. If it is a ParserResult or a tuple of
+        ParserResult's it will be set to None.
+        Instance can be of type Operator, Keyword, Symbols, etc.
+        """
         return self.__token
 
     def is_empty(self):
@@ -335,10 +364,28 @@ class ParserResult:
         return (self.__token == None)
 
     def is_ignore(self):
+        """ whether ParserResult should be ignored when building AST """
         if self.__token_instance and \
             isinstance(self.__token_instance, Token):
             return self.__token_instance.get_ignore_ast()
         return False
+
+    def get_sub_group(self, index):
+        """
+        returns a sub-ParserResult of type ParserResult, if index is not found,
+        None value is returned
+        sub-groups are indexed from 1, sub-group 0 is the whole AST
+        """
+        if index == 0:
+            return self
+        if isinstance(self.__token, ParserResult):
+            return self.__token.get_sub_group(index - 1)
+        if isinstance(self.__token, tuple):
+            for value in self.__token:
+                index = index - 1
+                if index == 0:
+                    return value
+        return None
 
 class TokenParser:
     """
@@ -348,23 +395,30 @@ class TokenParser:
     sequence of tokens.
     Then the group of parsers can be run onto the token sequence,
     note the __call__ method below.
-    The result from the parsing is accumulated in a ParserResult.
+    The result from the parsing algorithm is accumulated in a ParserResult.
     """
 
     def __call__(self, tokens, pos):
         raise NotImplementedError("Method should be implemented")
 
     def __and__(self, right):
-        return CombineParsers(self, right)
+        return CombineManyParsers(self, right)
+
+    def __lshift__(self, right):
+        return CombineTwoParsers(self, right)
 
     def __or__(self, right):
         return SelectParser(self, right)
 
-class CombineParsers(TokenParser):
+class CombineTwoParsers(TokenParser):
     """
-    This class is used to combine two token parsers using the AND(&)
+    This class is used to combine two token parsers using the LSHIFT(<<)
     operator. Both parsers should succeed consuming tokens from the
     token list in order for the whole combination to succeed.
+    If operation is applied over a sequence of parsers, the result will be
+    parsers that are enclosed in each other:
+    (parser1, (parser2, (parser3, ..., (parser4))). The structure of the
+    resulting AST will correspond to this configuration.
     """
 
     def __init__(self, first, second):
@@ -386,6 +440,39 @@ class CombineParsers(TokenParser):
                 return ParserResult((first_res, second_res), \
                     second_res.get_position())
         return None
+
+class CombineManyParsers(TokenParser):
+    """
+    This class is used to combine many token parsers using the AND(&)
+    operator into a single TokenParser. All parsers should succeed
+    consuming tokens from the token list in order for the whole
+    combination to be considered succeessful.
+    The structure of the resulting AST will correspond to this configuration.
+    """
+
+    def __init__(self, first, second):
+        self.parsers = []
+        if isinstance(first, CombineManyParsers):
+            self.parsers = self.parsers + first.parsers
+        else:
+            self.parsers.append(first)
+        if isinstance(second, CombineManyParsers):
+            #raise TypeError("right argument can't be CombineManyParsers")
+            self.parsers = self.parsers + second.parsers
+        else:
+            self.parsers.append(second)
+
+    def __call__(self, tokens, pos):
+        result = ()
+        for parser in self.parsers:
+            res = parser(tokens, pos)
+            if not res:
+                return None
+            pos = res.get_position()
+            if res.is_empty() or res.is_ignore():
+                continue
+            result = result + (res,)
+        return ParserResult(result, pos)
 
 class SelectParser(TokenParser):
     """
@@ -537,6 +624,8 @@ class Repeat(TokenParser):
 class AllTokensConsumed(TokenParser):
     """
     This class makes sure that all input tokens are consumed.
+    A parser of this type should be used when parsing the whole program
+    is desired.
     """
     def __init__(self, parser):
         self.__parser = parser
@@ -563,6 +652,9 @@ class RecursiveParser(TokenParser):
 
     expr = a | expr, a
         a, a, a, a, a
+
+    It is also useful when a parser uses or depends on another parser which
+    is not defined yet.
     """
 
     def __init__(self, get_parser_func):
@@ -749,8 +841,8 @@ class ParseTests(unittest.TestCase):
         
         result = parser(tokens, 0)
         self.assertTrue(result)
-        print(result)
-        result.pretty_print()
+        #print(result)
+        #result.pretty_print()
 
     def testRecursiveParser2(self):
 
