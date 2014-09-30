@@ -76,7 +76,11 @@ class TokenSetter(TokenIterator):
     """ Interface for setting a property on a group of tokens """
 
     def set_token(self, tokens, set_func, set_func_data):
-
+        """
+        Call token.set_func(set_func_data).
+        If argument is a list of tokens (TokenContainer) this function
+        will call set_func(set_func_data) for each token in the group
+        """
         if isinstance(tokens, TokenContainer):
             for token in self._get_tokens():
                 set_func(token, set_func_data)
@@ -631,6 +635,9 @@ class ParseTests(unittest.TestCase):
 
         """
 
+        IgnoreTokensInAST(self.SEMICOLON & self.LBRACE & self.RBRACE & \
+            self.RBRACKET & self.LBRACKET)
+
         # obtain a list of all tokens present in the source
         lexer = Lexer(self.TOKENS)
         tokens = lexer.parseTokens(source)
@@ -679,7 +686,7 @@ class ParseTests(unittest.TestCase):
         lexer = Lexer(self.TOKENS)
         tokens = lexer.parseTokens(source)
 
-        print tokens
+        #print tokens
 
         def return_parser():
             return parser
@@ -692,7 +699,7 @@ class ParseTests(unittest.TestCase):
         
         result = parser(tokens, 0)
         self.assertTrue(result)
-        print(result)
+        #print(result)
 
     def testRecursiveParser2(self):
 
@@ -702,6 +709,9 @@ class ParseTests(unittest.TestCase):
         a, a, a, a =
 
         """
+
+        IgnoreTokensInAST(self.SEMICOLON & self.LBRACE & self.RBRACE & \
+            self.RBRACKET & self.LBRACKET)
 
         # obtain a list of all tokens present in the source
         lexer = Lexer(self.TOKENS)
