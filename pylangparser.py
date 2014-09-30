@@ -272,7 +272,11 @@ class ParserResult:
         self.__token_instance = instance
 
     def __repr__(self):
-        return '(\'%s\', pos: %d)' % (self.__token, self.__position)
+        if not self.__token_instance:
+            return '(\'%s\', pos: %d)' % (self.__token, self.__position)
+        else:
+            return '(\'%s\', pos: %d, instance: %s)' % (self.__token, \
+                self.__position, self.__token_instance)
 
     def get_position(self):
         """ get the position of the next token in the list """
@@ -699,7 +703,7 @@ class ParseTests(unittest.TestCase):
         
         result = parser(tokens, 0)
         self.assertTrue(result)
-        #print(result)
+        print(result)
 
     def testRecursiveParser2(self):
 
