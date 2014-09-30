@@ -136,7 +136,7 @@ TOKENS = IGNORES & KEYWORDS & OPERATORS & IDENTIFIERS
 # list tokens to be IGNORED in the final AST
 #
 IgnoreTokensInAST(SEMICOLON & L_BRACE & R_BRACE & R_PAR & L_PAR & L_BRACKET & \
-    R_BRACKET)
+    R_BRACKET & COMMA & COLON)
 
 
 # our source code
@@ -728,3 +728,4 @@ translation_unit = AllTokensConsumed(Repeat(declaration_or_definition))
 result = translation_unit(tokens, 0)
 print("----\nAST:\n----")
 print(result)
+result.pretty_print()

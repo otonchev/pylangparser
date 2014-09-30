@@ -35,6 +35,7 @@ __author_email__ = "otonchev@gmail.com"
 
 import re
 import unittest
+import pprint
 
 class ParseException(Exception):
     """
@@ -273,33 +274,45 @@ class ParserResult:
 
     def __repr__(self):
         if not self.__token_instance:
+            #
+            # this is a tuple containing ParserResults's
+            #
             if isinstance(self.__token, tuple):
-               return '((%s, %s))' % self.__token
+               string = None
+               for value in self.__token:
+                   if not string:
+                       string = str(value)
+                   else:
+                       string = string + ', ' + str(value)
+               return '(%s)' % string
             else:
                return '(%s)' % self.__token
         else:
+            #
+            # only primitive ParserResults have instance. They are in the
+            # format: (token, pos, token_instance)
+            # these are Reserved words, Symbols, etc
+            #
             if isinstance(self.__token, tuple):
                 raise TypeError("value must be str")
             return '(%s, instance: %s)' % (self.__token, \
                 self.__token_instance)
 
-    def __pretty_print(self, tokens, depth=0):
-
+    def to_list(self):
+        """ convert AST to list of strings for debug purposes """
         if isinstance(self.__token, str):
-            print("%s%s" % (' ' * depth, self.__token))
-        else:
-            if isinstance(tokens, tuple):
-                print("%s{" % (' ' * depth))
-                (left, right) = tokens
-                self.__pretty_print(left, depth + 1)
-                self.__pretty_print(right, depth + 1)
-                print("%s}" % (' ' * depth))
+            return [self.__token]
+        results = []
+        for result in self.__token:
+            if isinstance(result, ParserResult):
+                results.append(result.to_list())
             else:
-                tokens.pretty_print(depth + 1)
+                results.append(result)
+        return results
 
-    def pretty_print(self, depth=0):
-        """ Prints a human readable version of ParserResult """
-        self.__pretty_print(self.__token, depth)
+    def pretty_print(self, *args, **kwargs):
+        """ use Data pretty printer to print AST in human readable format """
+        pprint.pprint(self.to_list(), *args, **kwargs)
 
     def get_position(self):
         """ get the position of the next token in the list """
@@ -388,10 +401,10 @@ class SelectParser(TokenParser):
     def __call__(self, tokens, pos):
         res = self.first(tokens, pos)
         if res:
-            return ParserResult(res, res.get_position())
+            return res
         res = self.second(tokens, pos)
         if res:
-            return ParserResult(res, res.get_position())
+            return res
         return None
 
 class KeywordParser(TokenParser):
@@ -480,9 +493,14 @@ class ZeroOrMore(TokenParser):
                 break
             pos = result.get_position()
             if not results:
-                results = (result,)
+                results = result
             else:
-                results = results + (result,)
+                if isinstance(results, tuple):
+                    results = results + (result,)
+                else:
+                    results = (results, result)
+        if results and isinstance(results, ParserResult):
+            return results
         return ParserResult(results, pos)
 
 class Repeat(TokenParser):
@@ -504,11 +522,16 @@ class Repeat(TokenParser):
                 break
             pos = result.get_position()
             if not results:
-                results = (result,)
+                results = result
             else:
-                results = results + (result,)
+                if isinstance(results, tuple):
+                    results = results + (result,)
+                else:
+                    results = (results, result)
         if not results:
             return None
+        if isinstance(results, ParserResult):
+            return results
         return ParserResult(results, pos)
 
 class AllTokensConsumed(TokenParser):
