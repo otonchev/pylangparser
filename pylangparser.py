@@ -272,8 +272,12 @@ class ParserResult:
         # __token:          is either a string, a ParserResult, or a tuple of
         #     ParserResult's
         # __position:       is the position of the next token in the lex list
-        # __token_instance: is a Token instance (Keyword, Symbols, Operator, etc).
-        #     For complex tokens such as touple or ParserResult it is set to None
+        # __token_instances: is a list of Parser instances that generated the
+        #     ParserResult. For basic tokens where __token is a string the list
+        #     will contain just one entry (Keyword, Symbols, Operator, etc).
+        #     For complex tokens such as ParserResult or touple of
+        #     ParserResult'a it is a list of all Parser's which were
+        #     successfully applied.
         self.__token = token
         self.__position = pos
         self.__token_instances = [instance]
@@ -281,7 +285,8 @@ class ParserResult:
     def __repr__(self):
         if not self.is_basic_token():
             #
-            # this is a tuple containing ParserResults's
+            # this is a ParserResult or a tuple containing group of
+            # ParserResult's
             #
             if isinstance(self.__token, tuple):
                string = None
@@ -305,6 +310,12 @@ class ParserResult:
                 self.__token_instances[0])
 
     def is_basic_token(self):
+        """
+        check if token in ParserResult is a basic token, this are all
+        tokens which are result of applying just one basic parser
+        (Keyword, Symbols, Operator, etc).
+        In this case self.__token is a string
+        """
         return (isinstance(self.__token, str))
 
     def to_list(self):
@@ -354,14 +365,31 @@ class ParserResult:
         return self.__token
 
     def add_instance(self, instance):
+        """
+        adds a new TokenParser instance to the ParserResult. This method is
+        used when building AST's and is called for each and every TokenParser
+        that was applied when the ParserResult was generated.
+
+        Example:
+            parser = KeywordParser(FOR) | KeywordParser(WHILE)
+        after applying this parser the resulting ParserResult will have just
+        one insance, it will be one of 'FOR' and 'WHILE'
+
+            parser = KeywordParser(FOR) | KeywordParser(WHILE)
+            parser1 = Repeat(parser)
+        after applying this parser the resulting ParserResult will contain two
+        instances, the first one will be one of 'FOR' and 'WHILE' and the second one
+        will be 'Repeat'
+
+        """
+        if not isinstance(instance, TokenParser):
+            raise TypeError("argument must be a TokenParser")
         self.__token_instances.append(instance)
 
     def is_instance(self, aimed):
         """
-        get the instance for the token in the ParserResult. Note that instance
-        is only set if token is a string. If it is a ParserResult or a tuple of
-        ParserResult's it will be set to None.
-        Instance can be of type Operator, Keyword, Symbols, etc.
+        check if a TokenParser was successfully applied when generating the
+        ParserResult. Check self.add_instance() for more details
         """
         for instance in self.__token_instances:
             if aimed == instance:
@@ -468,7 +496,6 @@ class CombineManyParsers(TokenParser):
         else:
             self.parsers.append(first)
         if isinstance(second, CombineManyParsers):
-            #raise TypeError("right argument can't be CombineManyParsers")
             self.parsers = self.parsers + second.parsers
         else:
             self.parsers.append(second)
