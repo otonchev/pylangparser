@@ -276,11 +276,11 @@ class ParserResult:
         #     For complex tokens such as touple or ParserResult it is set to None
         self.__token = token
         self.__position = pos
-        self.__token_instance = instance
+        self.__token_instances = [instance]
         self.__id = 0
 
     def __repr__(self):
-        if not self.__token_instance:
+        if not self.is_basic_token():
             #
             # this is a tuple containing ParserResults's
             #
@@ -303,7 +303,10 @@ class ParserResult:
             if isinstance(self.__token, tuple):
                 raise TypeError("value must be str")
             return '(%s, instance: %s)' % (self.__token, \
-                self.__token_instance)
+                self.__token_instances[0])
+
+    def is_basic_token(self):
+        return (isinstance(self.__token, str))
 
     def to_list(self):
         """ convert AST to list of strings for debug purposes """
@@ -351,14 +354,20 @@ class ParserResult:
         """
         return self.__token
 
-    def get_instance(self):
+    def add_instance(self, instance):
+        self.__token_instances.append(instance)
+
+    def is_instance(self, aimed):
         """
         get the instance for the token in the ParserResult. Note that instance
         is only set if token is a string. If it is a ParserResult or a tuple of
         ParserResult's it will be set to None.
         Instance can be of type Operator, Keyword, Symbols, etc.
         """
-        return self.__token
+        for instance in self.__token_instances:
+            if aimed == instance:
+                return True
+        return False
 
     def is_empty(self):
         """ check if ParserResult contains empty token """
@@ -366,9 +375,9 @@ class ParserResult:
 
     def is_ignore(self):
         """ whether ParserResult should be ignored when building AST """
-        if self.__token_instance and \
-            isinstance(self.__token_instance, Token):
-            return self.__token_instance.get_ignore_ast()
+        if self.__token_instances[0] and \
+            isinstance(self.__token_instances[0], Token):
+            return self.__token_instances[0].get_ignore_ast()
         return False
 
     def get_sub_group(self, index):
@@ -462,14 +471,16 @@ class CombineTwoParsers(TokenParser):
             second_res = self.second(tokens, first_res.get_position())
             if second_res:
                 if first_res.is_empty() or first_res.is_ignore():
+                    second_res.add_instance(self)
                     return second_res
                 if second_res.is_empty() or second_res.is_ignore():
                     # we are ignoring second result, update next tokens
                     # position in first result
                     first_res.set_position(second_res.get_position())
+                    first_res.add_instance(self)
                     return first_res
                 return ParserResult((first_res, second_res), \
-                    second_res.get_position(), self.get_id())
+                    second_res.get_position(), self.get_id(), self)
         return None
 
 class CombineManyParsers(TokenParser):
@@ -503,6 +514,7 @@ class CombineManyParsers(TokenParser):
             pos = res.get_position()
             if res.is_empty() or res.is_ignore():
                 continue
+            res.add_instance(self)
             result = result + (res,)
         return ParserResult(result, pos, self.get_id())
 
@@ -523,11 +535,13 @@ class SelectParser(TokenParser):
         if res:
             if self.get_id() > 0:
                 res.set_id(self.get_id())
+            res.add_instance(self)
             return res
         res = self.second(tokens, pos)
         if res:
             if self.get_id() > 0:
                 res.set_id(self.get_id())
+            res.add_instance(self)
             return res
         return None
 
@@ -630,7 +644,7 @@ class ZeroOrMore(TokenParser):
                     results = (results, result)
         if results and isinstance(results, ParserResult):
             return results
-        return ParserResult(results, pos, self.get_id())
+        return ParserResult(results, pos, self.get_id(), self)
 
 class Repeat(TokenParser):
     """
@@ -662,7 +676,7 @@ class Repeat(TokenParser):
             return None
         if isinstance(results, ParserResult):
             return results
-        return ParserResult(results, pos)
+        return ParserResult(results, pos, instance=self)
 
 class AllTokensConsumed(TokenParser):
     """

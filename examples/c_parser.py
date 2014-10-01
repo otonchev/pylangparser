@@ -483,7 +483,6 @@ function_declaration = \
     (type_specifier & function_declarator & OperatorParser(SEMICOLON)) | \
     (SymbolsParser(IDENTIFIER) & function_declarator & \
         OperatorParser(SEMICOLON))
-function_declaration.set_id(42)
 
 #
 # function definition
@@ -778,7 +777,7 @@ print("\n--------------function declarations--------------")
 index = 1
 group = result.get_sub_group(index)
 while group:
-    if group.get_id() == 42:
+    if group.is_instance(function_declaration):
         group.pretty_print()
     group = result.get_sub_group(index)
     index = index + 1
