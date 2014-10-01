@@ -348,7 +348,8 @@ abstract_direct_declarator = abstract_array_declarator | \
 
 def get_abstract_pointer():
     return abstract_pointer
-abstract_pointer = (OperatorParser(STAR) & abstract_direct_declarator) | \
+abstract_pointer = \
+    (OperatorParser(STAR) & Optional(abstract_direct_declarator)) | \
     (OperatorParser(STAR) & RecursiveParser(get_abstract_pointer))
 
 abstract_declarator = abstract_pointer | abstract_direct_declarator
@@ -390,6 +391,13 @@ function_pointer_declarator = OperatorParser(L_PAR) & pointer & \
 
 declarator = pointer | direct_declarator
 
+def get_rhs():
+    return rhs
+declarator_with_modifier = \
+    (pointer | direct_declarator) & \
+    Optional(OperatorParser(EQUAL) & \
+    RecursiveParser(get_rhs))
+
 member_declaration = type_specifier & declarator & OperatorParser(SEMICOLON)
 
 # main groups:
@@ -427,17 +435,19 @@ typedef_declaration = \
     (KeywordParser(TYPEDEF) & SymbolsParser(IDENTIFIER) & \
     declarator & OperatorParser(SEMICOLON));
 
-additional_declarator = \
-        OperatorParser(COMMA) & declarator
+additional_declarator_with_modifier = \
+        OperatorParser(COMMA) & declarator_with_modifier
 
 #
 # variable declaration
 #
 variable_declaration = \
-    (type_specifier & declarator & ZeroOrMore(additional_declarator) & \
+    (type_specifier & declarator_with_modifier & \
+        ZeroOrMore(additional_declarator_with_modifier) & \
         OperatorParser(SEMICOLON)) | \
-    (SymbolsParser(IDENTIFIER) & declarator & \
-        ZeroOrMore(additional_declarator) & OperatorParser(SEMICOLON))
+    (SymbolsParser(IDENTIFIER) & declarator_with_modifier & \
+        ZeroOrMore(additional_declarator_with_modifier) & \
+        OperatorParser(SEMICOLON))
 
 enumerator = \
     (SymbolsParser(IDENTIFIER) & OperatorParser(EQUAL) & \
@@ -505,8 +515,8 @@ arrayref = SymbolsParser(IDENTIFIER) & Repeat(reflist)
 varname = arrayref | compref | SymbolsParser(IDENTIFIER)
 
 type_name = \
-    type_specifier & abstract_declarator | \
-    SymbolsParser(IDENTIFIER) & abstract_declarator
+    type_specifier & Optional(abstract_declarator) | \
+    SymbolsParser(IDENTIFIER) & Optional(abstract_declarator)
 
 unop = \
     OperatorParser(PLUS) | \
@@ -583,6 +593,7 @@ unary_expression = \
         SymbolsParser(CONSTANT))
 
 rhs = \
+    call_expression | \
     binary_expression | \
     unary_expression
 
