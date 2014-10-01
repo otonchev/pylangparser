@@ -1,18 +1,16 @@
-# pylangparser - provides classes for parsing formal languages
-# in an easy way. There is a Lexer and a Parser. The lexer produces
-# list of tokens that the Parser then uses to build the AST. The lexer
-# can also be used as a stand alone component.
-# The grammars are defined directly into the Python code. For details,
-# check the examples.
-#
-# There are example scripts for parsing C sources.
-#
-# Note: the Parser is functional but still under development.
-# Documentation is not complete yet. New APIs for building custom ASTs
-# will be added soon.
-#
-# Feel free to send suggestions, comments and patches to:
-#     Ognyan Tonchev (otonchev at gmail com)
-# OR:
-#     https://www.linkedin.com/in/otonchev
-#
+pylangparser - provides classes for parsing formal languages in an easy way.
+There is a Lexer and a Parser. The lexer produces list of tokens that the Parser
+then uses to build the AST. The lexer can also be used as a stand alone component.
+The grammars are defined directly into the Python code. For details, check the
+examples.
+
+There is an example scripts parsing C source and builng AST.
+
+Note: the Parser is functional but still under development.
+Documentation is not complete yet. New APIs for building custom ASTs will be added soon.
+
+Feel free to send suggestions, comments and patches to:
+    Ognyan Tonchev (otonchev at gmail com)
+OR:
+    https://www.linkedin.com/in/otonchev
+
