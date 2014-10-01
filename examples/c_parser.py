@@ -754,7 +754,6 @@ group.pretty_print()
 print("\n------subgroup 6------")
 group = result.get_sub_group(6)
 group.pretty_print()
-print("id: %d", group.get_id())
 
 print("\n------subgroup 7------")
 group = result.get_sub_group(7)
