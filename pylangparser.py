@@ -766,11 +766,11 @@ class RecursiveParser(TokenParser):
         parser = self.__get_parser()
         return parser(tokens, pos)
 
-class CustomizeNode(TokenParser):
+class CustomizeResult(TokenParser):
     """
     This parser is used for customizing nodes and building custom AST's.
     It can be applied to just any parser:
-        parser = parser1 & CustomizedNode(parser2 & parser3)
+        parser = parser1 & CustomizedResult(parser2 & parser3)
 
     You can get ParserResult's node in the callback by calling
     parser.get_token(), reorganize it and update the result by calling

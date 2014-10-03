@@ -75,7 +75,7 @@ def update_arthm_expression(result):
     return result
 
 arthm_expression = \
-    CustomizeNode (SymbolsParser(IDENTIFIER) & \
+    CustomizeResult (SymbolsParser(IDENTIFIER) & \
     OperatorParser(ASSIGNMENT) & \
     operand & \
     Optional(arthm_operator & operand) & \
@@ -100,7 +100,7 @@ def update_condition(result):
 if_statement = \
     KeywordParser(IF) & \
     OperatorParser(LPAR) & \
-    CustomizeNode (condition, update_condition) & \
+    CustomizeResult (condition, update_condition) & \
     OperatorParser(RPAR) & \
     RecursiveParser(get_statement)
 
