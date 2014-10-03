@@ -154,18 +154,22 @@ class Token():
 
 class Keyword(Token):
     """ Keyword token """
-    pass
+    def __repr__(self):
+        return self.get_pattern()
 
 class Symbols(Token):
     """ Symbols token"""
-    pass
+    def __repr__(self):
+        return self.get_pattern()
 
 class Operator(Token):
     """ Operator token """
     def __init__(self, pattern):
         Token.__init__(self, pattern)
         self._autoescape = True
-    pass
+
+    def __repr__(self):
+        return self.get_pattern()
 
 class Ignore(Token):
     """ Valid token of no interest, should be ignored in parsing """
@@ -364,6 +368,13 @@ class ParserResult:
         """
         return self.__token
 
+    def set_token(self, token):
+        """
+        set the token of this ParserResult. This function is normally used
+        internally when building custom AST's
+        """
+        self.__token = token
+
     def add_instance(self, instance):
         """
         adds a new TokenParser instance to the ParserResult. This method is
@@ -432,7 +443,10 @@ class TokenParser:
     sequence of tokens.
     Then the group of parsers can be run onto the token sequence,
     note the __call__ method below.
-    The result from the parsing algorithm is accumulated in a ParserResult.
+    The result from the parsing algorithm is accumulated in a
+    ParserResult.
+
+        parser = parser1 & parser2 & (parser3 | parser4)
     """
 
     def __call__(self, tokens, pos):
@@ -456,6 +470,10 @@ class CombineTwoParsers(TokenParser):
     parsers that are enclosed in each other:
     (parser1, (parser2, (parser3, ..., (parser4))). The structure of the
     resulting AST will correspond to this configuration.
+
+    It can be applied to just any other parser:
+
+        parser = parser1 << parser2 << parser3
     """
 
     def __init__(self, first, second):
@@ -486,7 +504,12 @@ class CombineManyParsers(TokenParser):
     operator into a single TokenParser. All parsers should succeed
     consuming tokens from the token list in order for the whole
     combination to be considered succeessful.
-    The structure of the resulting AST will correspond to this configuration.
+    The structure of the resulting AST will correspond to this
+    configuration.
+
+    It can be applied to just any other parser:
+
+        parser = parser1 & parser2 & parser3
     """
 
     def __init__(self, first, second):
@@ -515,9 +538,12 @@ class CombineManyParsers(TokenParser):
 
 class SelectParser(TokenParser):
     """
-    This class is used to combine two token parsers using the OR(|)
+    This parser is used to combine two token parsers using the OR(|)
     bitwise operator. One of the parsers should succeed consuming a token
     from the token list in order for the whole combination to succeed.
+    It can be applied to just any other parser:
+
+        parser = parser1 | parser2 | parser3
     """
 
     def __init__(self, first, second):
@@ -538,9 +564,15 @@ class SelectParser(TokenParser):
 class KeywordParser(TokenParser):
     """
     This parser consumes a Keyword from the grammar.
+
+        IF = Keyword(r'if')
+
+        parser = KeywordParser(IF) & parser1
     """
 
     def __init__(self, token):
+        if not isinstance(token, Keyword):
+            raise TypeError("argument '%s' must be a Keyword" % token)
         self.__token = token
 
     def __call__(self, tokens, pos):
@@ -554,9 +586,15 @@ class KeywordParser(TokenParser):
 class OperatorParser(TokenParser):
     """
     This parser consumes an Operator from the grammar.
+
+        ASSIGNMENT = Operator(r'=')
+
+        parser = OperatorParser(ASSIGNMENT) & parser1
     """
 
     def __init__(self, token):
+        if not isinstance(token, Operator):
+            raise TypeError("argument '%s' must be an Operator" % token)
         self.__token = token
 
     def __call__(self, tokens, pos):
@@ -570,9 +608,15 @@ class OperatorParser(TokenParser):
 class SymbolsParser(TokenParser):
     """
     This parser consumes Symbols from the grammar.
+
+        IDENTIFIER = Symbol(r'[a-zA-Z_]*')
+
+        parser = SymbolsParser(IDENTIFIER) & parser1
     """
 
     def __init__(self, instance):
+        if not isinstance(instance, Symbols):
+            raise TypeError("argument '%s' must be a Symbol" % instance)
         self.__instance = instance
 
     def __call__(self, tokens, pos):
@@ -585,9 +629,11 @@ class SymbolsParser(TokenParser):
 
 class Optional(TokenParser):
     """
-    This class marks a TokenParser to be optional. This means
+    This parser marks a TokenParser to be optional. This means
     that the parser will not fail even if it does not find a token
-    to consume.
+    to consume. It can be applied to any other parser:
+
+        parser = Optional(parser1) & parser2
     """
 
     def __init__(self, parser):
@@ -603,9 +649,11 @@ class Optional(TokenParser):
 
 class ZeroOrMore(TokenParser):
     """
-    This class marks a TokenParser to be optional and appear multiple
+    This Parser marks a TokenParser to be optional and appear multiple
     times. The parser will be applied multiple times until it fails to
-    consume token.
+    consume token. It can be applied to any other parser:
+
+        parser = parser1 & ZeroOrMore(parser2 | parser3)
     """
 
     def __init__(self, parser):
@@ -633,8 +681,11 @@ class ZeroOrMore(TokenParser):
 
 class Repeat(TokenParser):
     """
-    This class allows a TokenParser to appear multiple times. The parser
+    This parser allows a TokenParser to appear multiple times. The parser
     will be applied multiple times until it fails to consume token.
+    It can be applied to just any other parser:
+
+        parser = Repeat(parser1) & parser2
     """
 
     def __init__(self, parser):
@@ -664,9 +715,11 @@ class Repeat(TokenParser):
 
 class AllTokensConsumed(TokenParser):
     """
-    This class makes sure that all input tokens are consumed.
+    This parser makes sure that all input tokens are consumed.
     A parser of this type should be used when parsing the whole program
-    is desired.
+    is desired:
+
+        parser = AllTokensConsumed(parser1 & (parser2 | parser3))
     """
     def __init__(self, parser):
         self.__parser = parser
@@ -684,8 +737,14 @@ class AllTokensConsumed(TokenParser):
 
 class RecursiveParser(TokenParser):
     """
-    This class is used for parsing recursive grammars.
-    Example:
+    This parser is used for parsing recursive grammars. It can be applied
+    to just any other parser:
+
+        def return_parser2():
+          return parser
+        parser = parser1 + RecursiveParser(return_parser)
+
+    When it should be used:
 
     ifstmt = if + ( + cond + ) + { + ifstmt  + }
 
@@ -706,6 +765,44 @@ class RecursiveParser(TokenParser):
             return None
         parser = self.__get_parser()
         return parser(tokens, pos)
+
+class CustomizeNode(TokenParser):
+    """
+    This parser is used for customizing nodes and building custom AST's.
+    It can be applied to just any parser:
+        parser = parser1 & CustomizedNode(parser2 & parser3)
+
+    You can get ParserResult's node in the callback by calling
+    parser.get_token(), reorganize it and update the result by calling
+    parser.set_token().
+
+    Example:
+        result = ('1', '+', '2', ('+', 3))
+
+    in the callback:
+        (lo, op, ro, rest) = result
+        rest_token = rest.get_token()
+        (op2, ro2) = rest_token
+        rest.set_token((op2, ro2, ro))
+        result.set_token(op, lo, rest)
+
+    result will look like that now:
+        result = ('+', '1', ('+', 3, 2))
+    """
+    def __init__(self, parser, customize_func=None):
+        self.__func = customize_func
+        if not self.__func:
+            self.__func = __default_customize
+        self.__parser = parser
+
+    def __default_customize(self, result):
+        return result
+
+    def __call__(self, tokens, pos):
+        result = self.__parser(tokens, pos)
+        if not result:
+            return result
+        return self.__func(result)
 
 
 class ParseTests(unittest.TestCase):
@@ -831,7 +928,7 @@ class ParseTests(unittest.TestCase):
         self.assertTrue(result)
         #print(result)
 
-        parser = (KeywordParser(self.RETURN) | OperatorParser(self.FOR)) & \
+        parser = (KeywordParser(self.RETURN) | KeywordParser(self.FOR)) & \
             SymbolsParser(self.INT_IDENTIFIER)
         result = parser(tokens, 0)
         self.assertTrue(result)
@@ -908,7 +1005,7 @@ class ParseTests(unittest.TestCase):
         def return_parser():
             return recursive
 
-        recursive = Repeat ((KeywordParser(self.COMMA) & \
+        recursive = Repeat ((OperatorParser(self.COMMA) & \
             RecursiveParser(return_parser)) | SymbolsParser(self.IDENTIFIER))
 
         parser = AllTokensConsumed(recursive & assignment)
