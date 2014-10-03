@@ -1,5 +1,5 @@
 #
-# The simplified Grammer is taken from the SableCC project:
+# The simplified Grammar is taken from the SableCC project:
 #    http://sourceforge.net/projects/sablecc/files/SableCC/
 #
 
