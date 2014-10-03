@@ -896,8 +896,8 @@ class CustomizeResult(TokenParser):
 class CheckErrors(TokenParser):
     """
     Use this parser as a top level parser in order to get relevant information
-    (row, column, error message) regarding parse errors. Calling this error
-    will throw ParseException if parsing fails.
+    (row, column, error message) regarding parse errors. Calling this parser
+    will result in a ParseException exception if parsing fails.
 
         parser = CheckErrors(parser1 & parser2 & parser3)
     """
