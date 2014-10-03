@@ -40,16 +40,30 @@ import pprint
 
 class ParseException(Exception):
     """
-    Exception class for parsing exceptions. Holds line number
+    Exception class for parsing exceptions. Holds row number, column
     and message for the source of error
     """
 
-    def __init__(self, line=0, message=None):
-        self.__line = line
+    def __init__(self, row=0, column=0, message=None):
+        self.__row = row
+        self.__column =  column
         self.__message = message
 
+    def get_row(self):
+        """ get row of the data that failed to parse """
+        return self.__row
+
+    def get_column(self):
+        """ get column of the data that failed to parse """
+        return self.__column
+
+    def get_message(self):
+        """ get message of the failure """
+        return self.__message
+
     def __str__( self ):
-        return "line: %d, message: %s" % (self.__line, self.__message)
+        return "row: %d, column: %d, message: %s" % (self.__row, \
+            self.__column, self.__message)
 
 class TokenIterator():
     """ Common interface for classes that want to iterate tokens """
@@ -117,6 +131,8 @@ class Token():
     """ Base class for all tokens in the grammar """
 
     def __init__(self, pattern):
+        self.__row = 0
+        self.__column = 0
         self.__pattern = pattern
         self.__ignore_ast = False
         self._ignore = False
@@ -147,6 +163,18 @@ class Token():
     def get_ignore_ast(self):
         """ Check whether the Token will be ignored when building the AST """
         return self.__ignore_ast
+
+    def set_row(self, value):
+        self.__row = value
+
+    def get_row(self, value):
+        return self.__row
+
+    def set_column(self, value):
+        self.__column = value
+
+    def get_column(self, value):
+        return self.__column
 
     def __and__(self, right):
         """ Overriding operator & allows for grouping tokens together """
@@ -187,8 +215,16 @@ class Lexer:
     def __init__(self, token_matcher):
         self.__token_matcher = token_matcher
 
-    def __findLineNumber(self, input_text, pos):
-        return input_text.count("\n", 0, pos) + 1
+    def __calculate_new_pos(self, input_text, start, prev_start, row, column):
+        """ calculate (row, pos) for current token """
+        row = row + input_text[prev_start:start].count('\n')
+        last_nl_index = input_text[prev_start:start].rfind('\n')
+        if last_nl_index > -1:
+            column = start - (prev_start + last_nl_index)
+        else:
+            column = column + (start - prev_start)
+        prev_start = start
+        return (row, column)
 
     def parseTokens(self, input_text):
         """
@@ -198,49 +234,62 @@ class Lexer:
         Raises ParseException
         """
         start = 0
-        index = 1
+        token_len = 1
         match = None
         tokens = []
 
-        while start + index <= len(input_text):
+        row = 0
+        column = 0
+        prev_start = 0
+
+        while start + token_len <= len(input_text):
 
             # ignore C style comments
             m = re.match('^' + self.C_STYLE_COMMENT, input_text[start:], \
                 re.DOTALL)
             if m:
                 start = start + m.end(0)
-                index = 1
+                token_len = 1
 
             # check for tokens
             result = \
-                self.__token_matcher.match_token(input_text[start:start + index])
+                self.__token_matcher.match_token(input_text[start:start + token_len])
             if result:
                 # remember that we got a match
                 match = result
             elif match:
                 # previous token matched, current didn't, take previous
                 if not match.is_ignore():
-                    tokens.append((input_text[start:start + index - 1], match))
-                start = start + index - 1
-                index = 0
+                    # calculate row and column for the new token
+                    (row, column) = self.__calculate_new_pos(input_text, start, \
+                        prev_start, row, column)
+                    prev_start = start
+                    match.set_row(row)
+                    match.set_column(column)
+                    # and append it to the result
+                    tokens.append((input_text[start:start + token_len - 1], match))
+                start = start + token_len - 1
+                token_len = 0
                 match = None
             else:
                 # no match at all
                 match = None
 
-            index = index + 1
+            token_len = token_len + 1
 
             # ignore trailing newline
-            while input_text[start:start + index].startswith('\n'):
+            while input_text[start:start + token_len].startswith('\n'):
                 start = start + 1
-                index = 1
+                token_len = 1
                 match = Ignore(r'\n')
 
         if match:
             if not match.is_ignore():
-                tokens.append((input_text[start:start + index - 1], match))
+                tokens.append((input_text[start:start + token_len - 1], match))
         else:
-            raise ParseException(self.__findLineNumber(input_text, start))
+            (row, column) = self.__calculate_new_pos(input_text, start, \
+                        prev_start, row, column)
+            raise ParseException(row, column, "Error parsing token")
 
         return tokens
 
