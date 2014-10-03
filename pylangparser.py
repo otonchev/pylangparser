@@ -441,6 +441,9 @@ class ParserResult:
         instances, the first one will be one of 'FOR' and 'WHILE' and the second one
         will be 'Repeat'
 
+        Instances are useful when iterating the AST to quickly check the type
+        of a sub-tree.
+
         """
         if not isinstance(instance, TokenParser):
             raise TypeError("argument must be a TokenParser")
@@ -449,7 +452,9 @@ class ParserResult:
     def is_instance(self, aimed):
         """
         check if a TokenParser was successfully applied when generating the
-        ParserResult. Check self.add_instance() for more details
+        ParserResult. Check self.add_instance() for more details.
+        This method is useful when iterating the AST to quickly check the type
+        of a sub-tree.
         """
         for instance in self.__token_instances:
             if aimed == instance:
@@ -496,6 +501,8 @@ class TokenParser:
     ParserResult.
 
         parser = parser1 & parser2 & (parser3 | parser4)
+        parser_result = parser(tokens_list, 0)
+        parser_result.pretty_print()
     """
 
     def __call__(self, tokens, pos):
