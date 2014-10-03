@@ -734,7 +734,8 @@ declaration_or_definition = \
 #
 # translation unit will parse the whole program
 #
-translation_unit = AllTokensConsumed(Repeat(declaration_or_definition))
+translation_unit = \
+    CheckErrors(AllTokensConsumed(Repeat(declaration_or_definition)))
 
 result = translation_unit(tokens, 0)
 print("----\nAST:\n----")

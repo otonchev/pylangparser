@@ -164,18 +164,6 @@ class Token():
         """ Check whether the Token will be ignored when building the AST """
         return self.__ignore_ast
 
-    def set_row(self, value):
-        self.__row = value
-
-    def get_row(self, value):
-        return self.__row
-
-    def set_column(self, value):
-        self.__column = value
-
-    def get_column(self, value):
-        return self.__column
-
     def __and__(self, right):
         """ Overriding operator & allows for grouping tokens together """
         return TokenContainer(self) & right
@@ -211,6 +199,40 @@ class Lexer:
     grammar
     """
     C_STYLE_COMMENT = r'/\*([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+/'
+
+    class TokenData:
+
+        def __init__(self, token_str, token_instance, row, column):
+            self.__token_str = token_str
+            self.__token_instance = token_instance
+            self.__touched = False
+            self.__row = row
+            self.__column = column
+
+        def __repr__(self):
+            return '(' + self.__token_str + ', ' + str(self.__token_instance) + ')'
+
+        def touch(self):
+            print "touching %s" % self.__token_str
+            self.__touched = True
+
+        def is_touched(self):
+            return self.__touched
+
+        def get_token(self):
+            return self.__token_str
+
+        def get_instance(self):
+            return self.__token_instance
+
+        def get_data(self):
+            return (self.__token_str, self.__token_instance)
+
+        def get_row(self):
+            return self.__row
+
+        def get_column(self):
+            return self.__column
 
     def __init__(self, token_matcher):
         self.__token_matcher = token_matcher
@@ -264,10 +286,10 @@ class Lexer:
                     (row, column) = self.__calculate_new_pos(input_text, start, \
                         prev_start, row, column)
                     prev_start = start
-                    match.set_row(row)
-                    match.set_column(column)
+                    data = self.TokenData(input_text[start:start + token_len - 1], match, \
+                        row, column)
                     # and append it to the result
-                    tokens.append((input_text[start:start + token_len - 1], match))
+                    tokens.append(data)
                 start = start + token_len - 1
                 token_len = 0
                 match = None
@@ -634,8 +656,9 @@ class KeywordParser(TokenParser):
     def __call__(self, tokens, pos):
         if pos >= len(tokens):
             return None
-        (token, instance) = tokens[pos]
+        (token, instance) = tokens[pos].get_data()
         if instance == self.__token:
+            tokens[pos].touch()
             return ParserResult(token, pos + 1, instance)
         return None
 
@@ -656,8 +679,9 @@ class OperatorParser(TokenParser):
     def __call__(self, tokens, pos):
         if pos >= len(tokens):
             return None
-        (token, instance) = tokens[pos]
+        (token, instance) = tokens[pos].get_data()
         if instance == self.__token:
+            tokens[pos].touch()
             return ParserResult(token, pos + 1, instance)
         return None
 
@@ -678,8 +702,9 @@ class SymbolsParser(TokenParser):
     def __call__(self, tokens, pos):
         if pos >= len(tokens):
             return None
-        (token, instance) = tokens[pos]
+        (token, instance) = tokens[pos].get_data()
         if instance == self.__instance:
+            tokens[pos].touch()
             return ParserResult(token, pos + 1, instance)
         return None
 
@@ -860,6 +885,21 @@ class CustomizeResult(TokenParser):
             return result
         return self.__func(result)
 
+class CheckErrors(TokenParser):
+
+    def __init__(self, parser):
+        self.__parser = parser
+
+    def __call__(self, tokens, pos):
+        result = self.__parser(tokens, pos)
+        if not result:
+            for i in range(0, len(tokens) - 1):
+                if not tokens[i].is_touched():
+                    raise ParseException(tokens[i].get_row(), \
+                        tokens[i].get_column(), \
+                        "Unknown symbol: %s" % tokens[i].get_token())
+        return result
+
 
 class ParseTests(unittest.TestCase):
     """ Follow the unit tests for the Lexer and the Parser """
@@ -909,8 +949,8 @@ class ParseTests(unittest.TestCase):
 
         super(ParseTests, self).__init__(*args, **kwargs)
 
-    def __checkEntry(self, expected_token, expected_instance, touple):
-        (token, instance) = touple
+    def __checkEntry(self, expected_token, expected_instance, token_data):
+        (token, instance) = token_data.get_data()
         self.assertEqual(expected_token, token)
         self.assertEqual(expected_instance, instance)
 
