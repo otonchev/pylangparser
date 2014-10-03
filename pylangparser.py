@@ -201,7 +201,9 @@ class Lexer:
     C_STYLE_COMMENT = r'/\*([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+/'
 
     class TokenData:
-
+        """
+        represents one token in the list of tokens returned by the Lexer
+        """
         def __init__(self, token_str, token_instance, row, column):
             self.__token_str = token_str
             self.__token_instance = token_instance
@@ -213,25 +215,31 @@ class Lexer:
             return '(' + self.__token_str + ', ' + str(self.__token_instance) + ')'
 
         def touch(self):
-            print "touching %s" % self.__token_str
+            """ mark token as successfully parsed when building AST """
             self.__touched = True
 
         def is_touched(self):
+            """ check if token was successfully parsed when building AST """
             return self.__touched
 
         def get_token(self):
+            """ token string """
             return self.__token_str
 
         def get_instance(self):
+            """ token instance: Keyword, Operator, Symbol """
             return self.__token_instance
 
         def get_data(self):
+            """ token string and instance as a touple """
             return (self.__token_str, self.__token_instance)
 
         def get_row(self):
+            """ row in source where token is found """
             return self.__row
 
         def get_column(self):
+            """ column in source where token is found """
             return self.__column
 
     def __init__(self, token_matcher):
@@ -252,7 +260,7 @@ class Lexer:
         """
         Returns a list of tokens present in the source. The list is in the
         format:
-        [('token1', Token), ('token2', Token),...]
+        [TokenData, TokenData,...]
         Raises ParseException
         """
         start = 0
@@ -886,6 +894,13 @@ class CustomizeResult(TokenParser):
         return self.__func(result)
 
 class CheckErrors(TokenParser):
+    """
+    Use this parser as a top level parser in order to get relevant information
+    (row, column, error message) regarding parse errors. Calling this error
+    will throw ParseException if parsing fails.
+
+        parser = CheckErrors(parser1 & parser2 & parser3)
+    """
 
     def __init__(self, parser):
         self.__parser = parser
