@@ -382,7 +382,7 @@ def get_function_pointer_declarator():
 direct_declarator = array_declarator | SymbolsParser(IDENTIFIER) | \
     RecursiveParser(get_function_pointer_declarator)
 
-pointer = (KeywordParser(STAR) & direct_declarator) | (KeywordParser(STAR) & \
+pointer = (OperatorParser(STAR) & direct_declarator) | (OperatorParser(STAR) & \
     RecursiveParser(get_pointer))
 
 function_pointer_declarator = OperatorParser(L_PAR) & pointer & \
@@ -656,38 +656,38 @@ case_statements = \
 statement = \
     compound_statement | \
     (basic_statement & OperatorParser(SEMICOLON)) | \
-    (OperatorParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
+    (KeywordParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
         OperatorParser(R_PAR) & OperatorParser(SEMICOLON) & \
-        OperatorParser(ELSE) & compound_statement) | \
-    (OperatorParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
+        KeywordParser(ELSE) & compound_statement) | \
+    (KeywordParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
         OperatorParser(R_PAR) & OperatorParser(SEMICOLON) & \
-        OperatorParser(ELSE) & compound_statement) | \
-    (OperatorParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
+        KeywordParser(ELSE) & compound_statement) | \
+    (KeywordParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
         OperatorParser(R_PAR) & RecursiveParser(get_statement) & \
-        OperatorParser(ELSE) & compound_statement) | \
-    (OperatorParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
-        OperatorParser(R_PAR) & compound_statement & OperatorParser(ELSE) & \
+        KeywordParser(ELSE) & compound_statement) | \
+    (KeywordParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
+        OperatorParser(R_PAR) & compound_statement & KeywordParser(ELSE) & \
         compound_statement) | \
-    (OperatorParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
-        OperatorParser(R_PAR) & compound_statement & OperatorParser(ELSE) & \
+    (KeywordParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
+        OperatorParser(R_PAR) & compound_statement & KeywordParser(ELSE) & \
         RecursiveParser(get_statement)) | \
-    (OperatorParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
+    (KeywordParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
         OperatorParser(R_PAR) & RecursiveParser(get_statement) & \
-        OperatorParser(ELSE) & RecursiveParser(get_statement)) | \
-    (OperatorParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
+        KeywordParser(ELSE) & RecursiveParser(get_statement)) | \
+    (KeywordParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
         OperatorParser(R_PAR) & compound_statement) | \
-    (OperatorParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
+    (KeywordParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
         OperatorParser(R_PAR) & RecursiveParser(get_statement)) | \
-    (OperatorParser(WHILE) & OperatorParser(L_PAR) & conditional_expression & \
+    (KeywordParser(WHILE) & OperatorParser(L_PAR) & conditional_expression & \
         OperatorParser(R_PAR) & compound_statement) | \
-    (OperatorParser(DO) & compound_statement & OperatorParser(WHILE) & \
+    (KeywordParser(DO) & compound_statement & KeywordParser(WHILE) & \
         OperatorParser(L_PAR) & conditional_expression & \
         OperatorParser(R_PAR) & OperatorParser(SEMICOLON)) | \
-    (OperatorParser(FOR) & OperatorParser(L_PAR) & Optional(basic_statement) & \
+    (KeywordParser(FOR) & OperatorParser(L_PAR) & Optional(basic_statement) & \
         OperatorParser(SEMICOLON) & Optional(conditional_expression) & \
         OperatorParser(SEMICOLON) & Optional(basic_statement) & \
         OperatorParser(R_PAR) & compound_statement) | \
-    (OperatorParser(SWITCH) & OperatorParser(L_PAR) & value & \
+    (KeywordParser(SWITCH) & OperatorParser(L_PAR) & value & \
         OperatorParser(R_PAR) & case_statements)
 
 dead_code = \
