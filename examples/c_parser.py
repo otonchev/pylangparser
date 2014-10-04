@@ -93,8 +93,9 @@ BAR_EQUAL = Operator(r'|=')
 
 IDENTIFIER = Symbols(r'[A-Za-z_]+[A-Za-z0-9_]*')
 STRING_IDENTIFIER = Symbols(r'\".*\"')
-CONSTANT = Symbols(r'[0-9]*')
-INT_CONSTANT = Symbols(r'[0-9]*')
+INT_CONSTANT = Symbols(r'(0x){0,1}[0-9]+')
+FLOAT_CONSTANT = Symbols(r'[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?')
+CHAR_CONSTANT = Symbols(r'\'.\'')
 
 CPP_STYLE_COMMENT = Ignore(r'\/\/[^\n]*')
 MACROS = Ignore(r'\#.*\n')
@@ -127,7 +128,7 @@ OPERATORS = DOT & COMMA & COLON & SEMICOLON & L_PAR & R_PAR & L_BRACKET & \
     MOD_EQUAL & PLUS_EQUAL & MINUS_EQUAL & SHL_EQUAL & SHR_EQUAL & \
     AMPERSAND_EQUAL & CARET_EQUAL & BAR_EQUAL
 
-IDENTIFIERS = IDENTIFIER & CONSTANT & STRING_IDENTIFIER & INT_CONSTANT
+IDENTIFIERS = IDENTIFIER & STRING_IDENTIFIER & INT_CONSTANT & FLOAT_CONSTANT
 
 # join all token sub-groups
 TOKENS = IGNORES & KEYWORDS & OPERATORS & IDENTIFIERS
@@ -174,7 +175,7 @@ func2(const int p, char t) {
   char *f;
   unsigned short j;
 
-  q = 5;
+  q = 5.5;
   func(12, q, 42);
 
   {
@@ -249,6 +250,44 @@ print(tokens)
 #
 # define C grammar
 #
+unop = \
+    OperatorParser(PLUS) | \
+    OperatorParser(MINUS) | \
+    OperatorParser(TILDE) | \
+    OperatorParser(EXCL_MARK)
+
+relop = \
+    OperatorParser(EQ) | \
+    OperatorParser(NEQ) | \
+    OperatorParser(LT) | \
+    OperatorParser(LTEQ) | \
+    OperatorParser(GT) | \
+    OperatorParser(GTEQ)
+
+binop = \
+    relop | \
+    OperatorParser(STAR) | \
+    OperatorParser(DIV) | \
+    OperatorParser(MOD) | \
+    OperatorParser(AMPERSAND) | \
+    OperatorParser(PLUS) | \
+    OperatorParser(MINUS) | \
+    OperatorParser(CARET) | \
+    OperatorParser(EXCL_MARK) | \
+    OperatorParser(BAR) | \
+    OperatorParser(SHL) | \
+    OperatorParser(SHR) | \
+    OperatorParser(AMPERSAND_AMPERSAND) | \
+    OperatorParser(BAR_BAR)
+
+prefop = \
+    OperatorParser(PLUS_PLUS) | \
+    OperatorParser(MINUS_MINUS)
+
+postfop = \
+    OperatorParser(PLUS_PLUS) | \
+    OperatorParser(MINUS_MINUS)
+
 void_specifier = KeywordParser(VOID)
 
 char_specifier = KeywordParser(CHAR)
@@ -325,16 +364,16 @@ def get_abstract_pointer():
 
 abstract_array_declarator_tail = \
     OperatorParser(L_BRACKET) & \
-    SymbolsParser(CONSTANT) & \
+    Optional(SymbolsParser(INT_CONSTANT)) & \
     OperatorParser(R_BRACKET)
 
 abstract_array_declarator = \
     (OperatorParser(L_BRACKET) & \
-        SymbolsParser(CONSTANT) & OperatorParser(R_BRACKET) & \
+        Optional(SymbolsParser(INT_CONSTANT)) & OperatorParser(R_BRACKET) & \
         Optional(abstract_array_declarator_tail)) | \
     (OperatorParser(L_PAR) & RecursiveParser(get_abstract_pointer) & \
         OperatorParser(R_PAR) & OperatorParser(L_BRACKET) & \
-        SymbolsParser(CONSTANT) & OperatorParser(R_BRACKET) & \
+        Optional(SymbolsParser(INT_CONSTANT)) & OperatorParser(R_BRACKET) & \
         Optional(abstract_array_declarator_tail))
 
 def get_parameter_list():
@@ -367,14 +406,14 @@ parameter_list = parameter_declaration & \
 def get_pointer():
     return pointer
 array_declarator_tail = \
-    OperatorParser(L_BRACKET) & Optional(SymbolsParser(CONSTANT)) & \
+    OperatorParser(L_BRACKET) & Optional(SymbolsParser(INT_CONSTANT)) & \
     OperatorParser(R_BRACKET)
 array_declarator = (SymbolsParser(IDENTIFIER) & OperatorParser(L_BRACKET) & \
-    Optional(SymbolsParser(CONSTANT)) & OperatorParser(R_BRACKET) & \
+    Optional(SymbolsParser(INT_CONSTANT)) & OperatorParser(R_BRACKET) & \
         ZeroOrMore(array_declarator_tail)) | \
     (OperatorParser(L_PAR) & RecursiveParser(get_pointer) & \
         OperatorParser(R_PAR) & OperatorParser(L_BRACKET) & \
-        Optional(SymbolsParser(CONSTANT)) & OperatorParser(R_BRACKET) & \
+        Optional(SymbolsParser(INT_CONSTANT)) & OperatorParser(R_BRACKET) & \
         ZeroOrMore(array_declarator_tail))
 
 def get_function_pointer_declarator():
@@ -449,9 +488,15 @@ variable_declaration = \
         ZeroOrMore(additional_declarator_with_modifier) & \
         OperatorParser(SEMICOLON))
 
+constant = \
+    (Optional(unop) & SymbolsParser(FLOAT_CONSTANT)) | \
+    (Optional(unop) & SymbolsParser(IDENTIFIER)) | \
+    (Optional(unop) & SymbolsParser(INT_CONSTANT)) | \
+    (Optional(unop) & SymbolsParser(CHAR_CONSTANT))
+
 enumerator = \
     (SymbolsParser(IDENTIFIER) & OperatorParser(EQUAL) & \
-        SymbolsParser(CONSTANT)) | \
+        constant) | \
     SymbolsParser(IDENTIFIER)
 #
 #  enum declaration
@@ -506,7 +551,7 @@ compref = \
         OperatorParser(R_PAR) & Repeat(idlist) | \
     SymbolsParser(IDENTIFIER) & Repeat(idlist)
 
-value = SymbolsParser(IDENTIFIER) | SymbolsParser(CONSTANT)
+value = SymbolsParser(IDENTIFIER) | constant
 
 reflist = OperatorParser(L_BRACKET) & value & OperatorParser(R_BRACKET)
 
@@ -518,56 +563,18 @@ type_name = \
     type_specifier & Optional(abstract_declarator) | \
     SymbolsParser(IDENTIFIER) & Optional(abstract_declarator)
 
-unop = \
-    OperatorParser(PLUS) | \
-    OperatorParser(MINUS) | \
-    OperatorParser(TILDE) | \
-    OperatorParser(EXCL_MARK)
-
-relop = \
-    OperatorParser(EQ) | \
-    OperatorParser(NEQ) | \
-    OperatorParser(LT) | \
-    OperatorParser(LTEQ) | \
-    OperatorParser(GT) | \
-    OperatorParser(GTEQ)
-
-binop = \
-    relop | \
-    OperatorParser(STAR) | \
-    OperatorParser(DIV) | \
-    OperatorParser(MOD) | \
-    OperatorParser(AMPERSAND) | \
-    OperatorParser(PLUS) | \
-    OperatorParser(MINUS) | \
-    OperatorParser(CARET) | \
-    OperatorParser(EXCL_MARK) | \
-    OperatorParser(BAR) | \
-    OperatorParser(SHL) | \
-    OperatorParser(SHR) | \
-    OperatorParser(AMPERSAND_AMPERSAND) | \
-    OperatorParser(BAR_BAR)
-
-prefop = \
-    OperatorParser(PLUS_PLUS) | \
-    OperatorParser(MINUS_MINUS)
-
-postfop = \
-    OperatorParser(PLUS_PLUS) | \
-    OperatorParser(MINUS_MINUS)
-
 conditional_expression = \
     (value & relop & value) | \
     value
 
 simple_expression = \
     varname | \
-    SymbolsParser(CONSTANT)
+    constant
 
 binary_expression = \
     (OperatorParser(L_PAR) & SymbolsParser(IDENTIFIER) & binop & value & \
         OperatorParser(R_PAR)) | \
-    (OperatorParser(L_PAR) & SymbolsParser(CONSTANT) & binop & value & \
+    (OperatorParser(L_PAR) & constant & binop & value & \
         OperatorParser(R_PAR)) | \
     (OperatorParser(L_PAR) & value & binop & value & OperatorParser(R_PAR))
 
@@ -589,8 +596,7 @@ unary_expression = \
     (OperatorParser(L_PAR) & unop & SymbolsParser(IDENTIFIER) & \
         OperatorParser(R_PAR)) | \
     (OperatorParser(L_PAR) & type_name & OperatorParser(R_PAR) & varname) | \
-    (OperatorParser(L_PAR) & type_name & OperatorParser(R_PAR) & \
-        SymbolsParser(CONSTANT))
+    (OperatorParser(L_PAR) & type_name & OperatorParser(R_PAR) & constant)
 
 rhs = \
     call_expression | \
@@ -619,7 +625,7 @@ basic_statement = \
     (OperatorParser(L_PAR) & type_name & OperatorParser(R_PAR) & \
         varname) | \
     (OperatorParser(L_PAR) & type_name & OperatorParser(R_PAR) & \
-        SymbolsParser(CONSTANT))
+        constant)
 
 def get_statement():
     return statement
@@ -640,14 +646,14 @@ default_statement = \
     (KeywordParser(DEFAULT) & OperatorParser(COLON))
 
 case_statement = \
-    (KeywordParser(CASE) & SymbolsParser(CONSTANT) & OperatorParser(COLON) & \
+    (KeywordParser(CASE) & constant & OperatorParser(COLON) & \
         OperatorParser(L_BRACE) & ZeroOrMore(RecursiveParser(get_statement)) & \
         Optional(RecursiveParser(get_stop_statement)) & \
         OperatorParser(R_BRACE)) | \
-    (KeywordParser(CASE) & SymbolsParser(CONSTANT) & OperatorParser(COLON) & \
+    (KeywordParser(CASE) & constant & OperatorParser(COLON) & \
         ZeroOrMore(RecursiveParser(get_statement)) & \
         Optional(RecursiveParser(get_stop_statement))) | \
-    (KeywordParser(CASE) & SymbolsParser(CONSTANT) & OperatorParser(COLON))
+    (KeywordParser(CASE) & constant & OperatorParser(COLON))
 
 case_statements = \
     OperatorParser(L_BRACE) & Repeat(case_statement) & \
