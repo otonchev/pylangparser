@@ -78,11 +78,15 @@ class TokenMatcher(TokenIterator):
         """ Checks whether input_string is a valid token """
         for token in self._get_tokens():
 
+            flags = 0
+
             pattern = token.get_pattern()
             if token.is_autoescape():
                 pattern = re.escape(pattern)
+            if token.is_ignorecase():
+                flags = re.IGNORECASE
 
-            if re.match('^' + pattern + '$', input_string):
+            if re.match('^' + pattern + '$', input_string, flags):
                 if not input_string.endswith('\n') or \
                     token.get_pattern().endswith('\\n'):
                     return token
@@ -130,17 +134,31 @@ class TokenContainer(TokenMatcher, TokenSetter):
 class Token():
     """ Base class for all tokens in the grammar """
 
-    def __init__(self, pattern):
+    def __init__(self, pattern, ignorecase=False):
+        """
+        pattern - pattern for the token, it can be a string or a regular
+            expression(r'for', r'>=' or r'[a-z]+')
+        ignorecase - whether case-insensitive matching should be performed
+            when parsing tokens
+        """
         self.__row = 0
         self.__column = 0
         self.__pattern = pattern
         self.__ignore_ast = False
+        self.__ignore_case = ignorecase
         self._ignore = False
         self._autoescape = False
 
     def get_pattern(self):
         """ Get the pattern for this token """
         return self.__pattern
+
+    def is_ignorecase(self):
+        """
+        Check whether case-insensitive matching should be performed when
+        parsing tokens
+        """
+        return self.__ignore_case
 
     def is_ignore(self):
         """
@@ -187,8 +205,8 @@ class Operator(Token):
 
 class Ignore(Token):
     """ Valid token of no interest, should be ignored in parsing """
-    def __init__(self, pattern):
-        Token.__init__(self, pattern)
+    def __init__(self, pattern, ignorecase=False):
+        Token.__init__(self, pattern, ignorecase)
         self._ignore = True
 
 class Lexer:
