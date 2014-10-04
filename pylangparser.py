@@ -168,24 +168,22 @@ class Token():
         """ Overriding operator & allows for grouping tokens together """
         return TokenContainer(self) & right
 
+    def __repr__(self):
+        return self.__pattern
+
 class Keyword(Token):
     """ Keyword token """
-    def __repr__(self):
-        return self.get_pattern()
+    pass
 
 class Symbols(Token):
     """ Symbols token"""
-    def __repr__(self):
-        return self.get_pattern()
+    pass
 
 class Operator(Token):
     """ Operator token """
     def __init__(self, pattern):
         Token.__init__(self, pattern)
         self._autoescape = True
-
-    def __repr__(self):
-        return self.get_pattern()
 
 class Ignore(Token):
     """ Valid token of no interest, should be ignored in parsing """
