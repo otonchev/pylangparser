@@ -230,13 +230,19 @@ func2(const int p, char t) {
   if (p == 5)
     p = 5;
   else
-    p = 6;
+    goto error;
 
   /*
    * this is a multi-line comment
    */
 
   return (p == 5);
+
+error: {
+  if (p == 5)
+    p = 5;
+  return 1;
+}
 }
 
 """
@@ -659,7 +665,11 @@ case_statements = \
     OperatorParser(L_BRACE) & Repeat(case_statement) & \
         Optional(default_statement) & OperatorParser(R_BRACE)
 
+goto_statement = \
+    KeywordParser(GOTO) & SymbolsParser(IDENTIFIER) & OperatorParser(SEMICOLON)
+
 statement = \
+    goto_statement | \
     compound_statement | \
     (basic_statement & OperatorParser(SEMICOLON)) | \
     (KeywordParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
@@ -718,11 +728,20 @@ stop_statement = \
         ZeroOrMore(dead_code)) | \
     (KeywordParser(RETURN) & OperatorParser(L_PAR) & value & \
         OperatorParser(R_PAR) & OperatorParser(SEMICOLON) & \
-        ZeroOrMore(dead_code))
+        ZeroOrMore(dead_code)) | \
+    (goto_statement & ZeroOrMore(dead_code))
+
+labeled_statement = \
+    (SymbolsParser(IDENTIFIER) & OperatorParser(COLON) & \
+        OperatorParser(L_BRACE) & ZeroOrMore(statement) & \
+        ZeroOrMore(stop_statement) & OperatorParser(R_BRACE)) | \
+    (SymbolsParser(IDENTIFIER) & OperatorParser(COLON) & \
+        ZeroOrMore(statement) & ZeroOrMore(stop_statement))
 
 function_body = \
     OperatorParser(L_BRACE) & ZeroOrMore(variable_declaration) & \
-    ZeroOrMore(statement) & ZeroOrMore(stop_statement) & OperatorParser(R_BRACE)
+    ZeroOrMore(statement) & ZeroOrMore(stop_statement) & \
+    ZeroOrMore(labeled_statement) & OperatorParser(R_BRACE)
 
 function_definition = \
     (type_specifier & function_declarator & function_body) | \
