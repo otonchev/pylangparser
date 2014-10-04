@@ -804,12 +804,14 @@ class AllTokensConsumed(TokenParser):
     """
     This parser makes sure that all input tokens are consumed.
     A parser of this type should be used when parsing the whole program
-    is desired:
+    is desired. Internally it uses CheckErrors parser as a top level
+    parser so that parse errors are detected and reported.
+    Raises ParseException exception
 
         parser = AllTokensConsumed(parser1 & (parser2 | parser3))
     """
     def __init__(self, parser):
-        self.__parser = parser
+        self.__parser = CheckErrors (parser)
 
     def __call__(self, tokens, pos):
         if pos >= len(tokens):
