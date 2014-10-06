@@ -6,42 +6,177 @@
 
 # this is a working incomplete version
 
-statement = \
-     (KeywordParser(SELECT) & select_statement) | \
-     (KeywordParser(INSERT) & insert_statement) | \
-     (KeywordParser(DELETE) & delete_statement) | \
-     (KeywordParser(UPDATE) & update_statement)
+import sys
+sys.path.append("..")
+
+from pylangparser import *
+
+SELECT = Keyword(r'SELECT')
+INSERT = Keyword(r'INSERT')
+DELETE = Keyword(r'DELETE')
+UPDATE = Keyword(r'UPDATE')
+FROM = Keyword(r'FROM')
+INTO = Keyword(r'INTO')
+SET = Keyword(r'SET')
+WHERE = Keyword(r'WHERE')
+HAVING = Keyword(r'HAVING')
+DISTINCT = Keyword(r'DISTINCT')
+ALL = Keyword(r'ALL')
+ASC = Keyword(r'ASC')
+DESC = Keyword(r'DESC')
+GROUP_BY = Keyword(r'GROUP BY')
+ORDER_BY = Keyword(r'ORDER BY')
+COUNT = Keyword(r'COUNT')
+AVG = Keyword(r'AVG')
+MAX = Keyword(r'MAX')
+MIN = Keyword(r'MIN')
+SUM = Keyword(r'SUM')
+VALUES = Keyword(r'VALUES')
+NULL = Keyword(r'NULL')
+IN = Keyword(r'IN')
+IS = Keyword(r'IS')
+NOT = Keyword(r'NOT')
+LIKE = Keyword(r'LIKE')
+AND = Keyword(r'AND')
+OR = Keyword(r'OR')
+
+KEYWORDS = SELECT & INSERT & DELETE & UPDATE & FROM & INTO & SET & WHERE & \
+    HAVING & DISTINCT & ALL & ASC & DESC & GROUP_BY & ORDER_BY & COUNT & \
+    AVG & MAX & MIN & SUM & VALUES & NULL & IN & IS & NOT & LIKE & AND & OR
+
+IDENTIFIER = Symbols(r'[a-zA-Z_]+')
+STRING = Symbols(r'\'[a-zA-Z_]+\'')
+REALNUMBER = Symbols(r'[0-9]+\.[0-9]+')
+INTEGER = Symbols(r'[0-9]+')
+DATE = Symbols(r'd\'[0-9]{4}-[0-9]{2}-[0-9]{2}\'')
+TIME = Symbols(r't\'[0-9]{2}:[0-9]{2}:[0-9]{2}\'')
+TIMESTAMP = Symbols(r'ts\'[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}\'')
+
+SYMBOLS = IDENTIFIER & STRING & REALNUMBER & INTEGER & DATE & TIME & TIMESTAMP
+
+SEMICOLON = Operator(r';')
+COMMA = Operator(r',')
+STAR = Operator(r'*')
+L_PAR = Operator(r'(')
+R_PAR = Operator(r')')
+PLUS = Operator(r'+')
+MINUS = Operator(r'-')
+DIV = Operator(r'/')
+ASSIGNMENT = Operator(r'=')
+GT = Operator(r'>')
+GE = Operator(r'>=')
+LE = Operator(r'<')
+LQ = Operator(r'<=')
+DIFFERENT = Operator(r'<>')
+
+OPERATORS = SEMICOLON & COMMA & STAR & L_PAR & R_PAR & PLUS & MINUS & DIV & \
+    ASSIGNMENT & GT & GE & LE & LQ & DIFFERENT
+
+IGNORE_CHARS = Ignore(r'[ \t\v\f]+')
+
+TOKENS = KEYWORDS & SYMBOLS & OPERATORS & IGNORE_CHARS
+
+IgnoreTokensInAST(SEMICOLON & R_PAR & L_PAR & COMMA)
+
+sql = """
+    SELECT CustomerName,City FROM Customers;
+"""
 
 tablename = SymbolsParser(IDENTIFIER)
 columnname = SymbolsParser(IDENTIFIER)
 
-select_statement = \
-    selectcols & \
-    KeywordParser(FROM) & \
-    tablelist & \
-    where & \
-    groupby & \
-    having & \
-    orderby
-delete_statement = \
-    KeywordParser(FROM) & \
-    table & \
-    where
-insert_stamenet = \
-    KeywordParser(INTO) & \
-    table & \
-    insertvals
-update__statement = \
-    table & \
-    KeywordParser(SET) & \
-    setlist & \
-    where
+table = tablename
 
-setlist = \
-    set_statement & ZeroOrMore(OperatorParser(COMMA) & set_statement)
-set_statement = \
-    (column & OpretaorParser(ASSIGNMENT) & SymbolsParser(NULL)) | \
-    (column & OpretaorParser(ASSIGNMENT) & expression)
+aliasname = SymbolsParser(IDENTIFIER)
+
+tableref = table | (table & aliasname)
+
+def get_tablelist():
+    return tablelist
+tablelist = \
+    (tableref & OperatorParser(COMMA) & RecursiveParser(get_tablelist)) | \
+    tableref
+
+colref = (aliasname & OperatorParser(COMMA) & columnname) | columnname
+
+asc = KeywordParser(ASC) | KeywordParser(DESC)
+
+orderbyterm = (colref & asc) | (SymbolsParser(INTEGER) & asc)
+
+def get_orderbyterms():
+    return orderbyterms
+orderbyterms = orderbyterm | \
+    (orderbyterm & OperatorParser(COMMA) & RecursiveParser(get_orderbyterms))
+
+orderby = KeywordParser(ORDER_BY) & orderbyterms
+
+def get_groupbyterms():
+    return groupbyterms
+groupbyterms = \
+    colref | \
+    (colref & OperatorParser(COMMA) & RecursiveParser(get_groupbyterms))
+
+groupby = KeywordParser(GROUP_BY) & groupbyterms
+
+simpleterm = SymbolsParser(STRING) | SymbolsParser(REALNUMBER) | \
+    SymbolsParser(DATE) | SymbolsParser(TIME) | SymbolsParser(TIMESTAMP)
+
+def get_expression():
+    return expression
+
+aggterm = \
+    (KeywordParser(COUNT) & OperatorParser(L_PAR) & OperatorParser(STAR) & \
+        OperatorParser(R_PAR)) | \
+    (KeywordParser(AVG) & OperatorParser(L_PAR) & RecursiveParser(get_expression) & \
+        OperatorParser(R_PAR)) | \
+    (KeywordParser(MAX) & OperatorParser(L_PAR) & RecursiveParser(get_expression) & \
+        OperatorParser(R_PAR)) | \
+    (KeywordParser(MIN) & OperatorParser(L_PAR) & RecursiveParser(get_expression) & \
+        OperatorParser(R_PAR)) | \
+    (KeywordParser(SUM) & OperatorParser(L_PAR) & RecursiveParser(get_expression) & \
+        OperatorParser(R_PAR))
+
+term = \
+    (OperatorParser(L_PAR) & RecursiveParser(get_expression) & \
+        OperatorParser(R_PAR)) | \
+    colref | \
+    simpleterm | \
+    aggterm
+
+neg = \
+    term | \
+    (OperatorParser(PLUS) & term) | \
+    (OperatorParser(MINUS) & term)
+
+times = \
+    neg & ZeroOrMore((OperatorParser(STAR) | OperatorParser(DIV)) & neg)
+
+expression = \
+    times & ZeroOrMore((OperatorParser(PLUS) | OperatorParser(MINUS)) & times)
+
+def get_selectlist():
+    return selectlist
+selectlist = \
+    (expression & OperatorParser(COMMA) & RecursiveParser(get_selectlist)) | \
+    expression
+
+selectallcols = KeywordParser(ALL) | KeywordParser(DISTINCT)
+selectcols = (selectallcols & OperatorParser(STAR)) | \
+    (selectallcols & selectlist)
+
+column = columnname
+def get_columnlist():
+    return columnlist
+columnlist = column & RecursiveParser(get_columnlist) | column
+
+def get_valuelist():
+    return valuelist
+valuelist = \
+    (KeywordParser(NULL) & OperatorParser(COMMA) & \
+        RecursiveParser(get_valuelist)) | \
+    (expression & OperatorParser(COMMA) & RecursiveParser(get_valuelist)) | \
+    expression | \
+    KeywordParser(NULL)
 
 insertvals = \
     (OperatorParser(L_PAR) & columnlist & OperatorParser(R_PAR) & \
@@ -50,46 +185,45 @@ insertvals = \
     (KeywordParser(VALUES) & OperatorParser(L_PAR) & valuelist & \
         OperatorParser(R_PAR))
 
-def get_columnlist():
-    return columnlist
-columnlist = column & RecursiveParser(get_columnlist) | column
-column = columnname
+set_statement = \
+    (column & OperatorParser(ASSIGNMENT) & KeywordParser(NULL)) | \
+    (column & OperatorParser(ASSIGNMENT) & expression)
+setlist = \
+    set_statement & ZeroOrMore(OperatorParser(COMMA) & set_statement)
 
-def get_valuelist():
-    return valuelist
-valuelist = \
-    (SymbolsParser(NULL) & OperatorParser(COMMA) & \
-        RecursiveParser(get_valuelist)) | \
-    (expression & OperatorParser(COMMA) & RecusrsiveParser(get_valuelist)) | \
-    expression | \
-    SymbolsParser(NULL)
+select_statement = \
+    selectcols & \
+    KeywordParser(FROM) & \
+    tablelist & \
+    KeywordParser(WHERE) & \
+    KeywordParser(GROUP_BY) & \
+    KeywordParser(HAVING) & \
+    KeywordParser(ORDER_BY)
+delete_statement = \
+    KeywordParser(FROM) & \
+    table & \
+    KeywordParser(WHERE)
+insert_statement = \
+    KeywordParser(INTO) & \
+    table & \
+    insertvals
+update_statement = \
+    table & \
+    KeywordParser(SET) & \
+    setlist & \
+    KeywordParser(WHERE)
 
-selectcols = (selectallcols & OperatorParser(STAR)) | \
-    (selectallcols & selectlist)
-selectallcols = KeywordParser(ALL) | KeywordParser(DISTINCT)
-selectlist = (expression & OperatorParser(COMMA) & selectlist) | expression
+pattern = SymbolsParser(STRING)
 
-where = KeywordParser(WHERE) & boolean
-having = KeywordParser(HAVING) & boolean
+op = OperatorParser(GT) | OperatorParser(GE) | OperatorParser(LE) | \
+    OperatorParser(LQ) | OperatorParser(ASSIGNMENT) | OperatorParser(DIFFERENT)
 
 def get_boolean():
     return boolean
-boolean = and_statement | (and_statement & KeywordParser(OR) & \
-    RecursiveParser(get_boolean))
-
-def get_and_statement():
-    return and_statement
-
-and_statement = \
-    not_statement | \
-    (not_statement & KeywordParser(AND) & RecursiveParser(get_and_statement))
-
-not_statement = comparison | (KeywordParser(NOT) & comparison)
-
 comparison = \
-    (OperatorParser(L_PAR) & boolean & OperatorParser(R_PAR) & colref & \
-        KeywordParser(IS) & SymbolsParser(NULL)) | \
-    (colref & KeywordParser(IS) & KeywordParser(NOT) & SymbolsParser(NULL)) | \
+    (OperatorParser(L_PAR) & RecursiveParser(get_boolean) & OperatorParser(R_PAR) & colref & \
+        KeywordParser(IS) & KeywordParser(NULL)) | \
+    (colref & KeywordParser(IS) & KeywordParser(NOT) & KeywordParser(NULL)) | \
     (expression & KeywordParser(LIKE) & pattern) | \
     (expression & KeywordParser(NOT) & KeywordParser(LIKE) & pattern) | \
     (expression & KeywordParser(IN) & OperatorParser(L_PAR) & valuelist & \
@@ -98,82 +232,32 @@ comparison = \
         valuelist & OperatorParser(R_PAR)) | \
     (expression & op & expression)
 
-op = GT | GE | LE | LE | ASSIGNMENT | DIFFERENT
+not_statement = comparison | (KeywordParser(NOT) & comparison)
 
-pattern = SymbolsPaarser(STRING)
-expression = \
-    (expression & OperatorParser(PLUS) & times) | \
-    (expression & OperatorParser(MINUS) & times) | \
-    times
+def get_and_statement():
+    return and_statement
+and_statement = \
+    not_statement | \
+    (not_statement & KeywordParser(AND) & RecursiveParser(get_and_statement))
 
-times = \
-    (times & OperatorParser(STAR) & neg) | \
-    (times & OperatorParser(DIV) & neg) | \
-    neg
+def get_boolean():
+    return boolean
+boolean = and_statement | (and_statement & KeywordParser(OR) & \
+    RecursiveParser(get_boolean))
 
-neg = \
-    term | \
-    (OperatorParser(PLUS) & term) | \
-    (OperatorParser(MINUS) & term)
+where = KeywordParser(WHERE) & boolean
+having = KeywordParser(HAVING) & boolean
 
-term = \
-    (OperatorParser(L_PAR) & expression & OperatorParser(R_PAR)) | \
-    colref | \
-    simpleterm | \
-    aggterm
+def get_and_statement():
+    return and_statement
 
-aggterm = \
-    (KeywordParser(COUNT) & OperatorParser(L_PAR) & OperatorParser(STAR) & \
-        OperatorParser(R_PAR)) | \
-    (KeywordParser(AVG) & OperatorParser(L_PAR) & expression & \
-        OperatorParser(R_PAR)) | \
-    (KeywordParser(MAX) & OperatorParser(L_PAR) & expression & \
-        OperatorParser(R_PAR)) | \
-    (KeywordParser(MIN) & OperatorParser(L_PAR) & expression & \
-        OperatorParser(R_PAR)) | \
-    (KeywordParser(SUM) & OperatorParser(L_PAR) & expression & \
-        OperatorParser(R_PAR))
+statement = \
+     (KeywordParser(SELECT) & select_statement & Optional(OperatorParser(SEMICOLON))) | \
+     (KeywordParser(INSERT) & insert_statement & Optional(OperatorParser(SEMICOLON))) | \
+     (KeywordParser(DELETE) & delete_statement & Optional(OperatorParser(SEMICOLON))) | \
+     (KeywordParser(UPDATE) & update_statement & Optional(OperatorParser(SEMICOLON)))
 
-simpleterm = string | realnumber | date | time | timestamp
-
-groupby = KeywordParser(GROUP_BY) & groupbyterms
-
-def get_groupbyterms():
-    return groupbyterms
-groupbyterms = \
-    colref | \
-    (colref & OperatorParser(COMMA) & RecursiveParser(get_groupbyterms))
-
-orderby = KeywordParser(ORDER_BY) & orderbyterms
-
-def get_orderbyterms():
-    return orderbyterms
-orderbyterms = orderbyterm | \
-    (orderbyterm & OperatorParser(COMMA) & RecursiveParser(get_orderbyterms))
-
-orderbyterm = (colref & asc) | (integer & asc)
-
-asc = KeywordParser(ASC) | KeywordParser(DESC)
-
-colref = (aliasname & OperatorParser(COMMA) & columnname) | columnname
-
-aliasname = SymbolsParser(IDENTIFIER)
-
-tablelist = (tableref & OperatorParser(COMMA) & tablelist) | tableref
-
-tableref = table | (table & aliasname)
-
-table = tablename
-
-
-identifier ::= an identifier (identifiers containing spaces must be enclosed in double quotation marks)
-string ::= a string (enclosed in single quotation marks)
-realnumber ::= a non-negative real number
-integer ::= a non-negative integer
-date ::= a date in ODBC escape clause format (for example, {d'1996-02-05'} or
-   --(*vendor(Microsoft),product(ODBC) d'1996-02-05'*)--
-time ::= a time in ODBC escape clause format (for example, {t'10:19:48'} or
-   --(*vendor(Microsoft),product(ODBC) t '10:19:48'*)--
-timestamp ::= a timestamp in ODBC escape clause format (for example,
-  {ts'1996-02-05 10:19:48.529'} or
-  --(*vendor(Microsoft),product(ODBC) ts '1996-02-05 10:19:48.529"*)--
+# obtain list of tokens
+lexer = Lexer(TOKENS)
+tokens = lexer.parseTokens(sql)
+print(tokens)
