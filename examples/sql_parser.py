@@ -1,10 +1,10 @@
 # Example usage of the Parser. The test parses SQL scrips
 # and validates the grammar.
+# Supported SQL grammar:
+#     http://www.stowe8miler.org/sqlgrmr.html
 #
 # Copyright, 2014, Ognyan Tonchev (otonchev at gmail com)
 #
-
-# this is a working incomplete version
 
 import sys
 sys.path.append("..")
@@ -80,6 +80,7 @@ IgnoreTokensInAST(SEMICOLON & R_PAR & L_PAR & COMMA)
 
 sql = """
     SELECT CustomerName,City FROM Customers;
+    SELECT CustomerName FROM Customers WHERE CustomerID=1;
 """
 
 tablename = SymbolsParser(IDENTIFIER)
@@ -99,7 +100,7 @@ tablelist = \
 
 colref = (aliasname & OperatorParser(COMMA) & columnname) | columnname
 
-asc = KeywordParser(ASC) | KeywordParser(DESC)
+asc = Optional(KeywordParser(ASC) | KeywordParser(DESC))
 
 orderbyterm = (colref & asc) | (SymbolsParser(INTEGER) & asc)
 
@@ -108,7 +109,7 @@ def get_orderbyterms():
 orderbyterms = orderbyterm | \
     (orderbyterm & OperatorParser(COMMA) & RecursiveParser(get_orderbyterms))
 
-orderby = KeywordParser(ORDER_BY) & orderbyterms
+orderby = Optional(KeywordParser(ORDER_BY) & orderbyterms)
 
 def get_groupbyterms():
     return groupbyterms
@@ -116,7 +117,7 @@ groupbyterms = \
     colref | \
     (colref & OperatorParser(COMMA) & RecursiveParser(get_groupbyterms))
 
-groupby = KeywordParser(GROUP_BY) & groupbyterms
+groupby = Optional(KeywordParser(GROUP_BY) & groupbyterms)
 
 simpleterm = SymbolsParser(STRING) | SymbolsParser(REALNUMBER) | \
     SymbolsParser(DATE) | SymbolsParser(TIME) | SymbolsParser(TIMESTAMP)
@@ -160,7 +161,7 @@ selectlist = \
     (expression & OperatorParser(COMMA) & RecursiveParser(get_selectlist)) | \
     expression
 
-selectallcols = KeywordParser(ALL) | KeywordParser(DISTINCT)
+selectallcols = Optional(KeywordParser(ALL) | KeywordParser(DISTINCT))
 selectcols = (selectallcols & OperatorParser(STAR)) | \
     (selectallcols & selectlist)
 
@@ -190,28 +191,6 @@ set_statement = \
     (column & OperatorParser(ASSIGNMENT) & expression)
 setlist = \
     set_statement & ZeroOrMore(OperatorParser(COMMA) & set_statement)
-
-select_statement = \
-    selectcols & \
-    KeywordParser(FROM) & \
-    tablelist & \
-    KeywordParser(WHERE) & \
-    KeywordParser(GROUP_BY) & \
-    KeywordParser(HAVING) & \
-    KeywordParser(ORDER_BY)
-delete_statement = \
-    KeywordParser(FROM) & \
-    table & \
-    KeywordParser(WHERE)
-insert_statement = \
-    KeywordParser(INTO) & \
-    table & \
-    insertvals
-update_statement = \
-    table & \
-    KeywordParser(SET) & \
-    setlist & \
-    KeywordParser(WHERE)
 
 pattern = SymbolsParser(STRING)
 
@@ -245,8 +224,30 @@ def get_boolean():
 boolean = and_statement | (and_statement & KeywordParser(OR) & \
     RecursiveParser(get_boolean))
 
-where = KeywordParser(WHERE) & boolean
-having = KeywordParser(HAVING) & boolean
+where = Optional(KeywordParser(WHERE) & boolean)
+having = Optional(KeywordParser(HAVING) & boolean)
+
+select_statement = \
+    selectcols & \
+    KeywordParser(FROM) & \
+    tablelist & \
+    where & \
+    groupby & \
+    having & \
+    orderby
+delete_statement = \
+    KeywordParser(FROM) & \
+    table & \
+    where
+insert_statement = \
+    KeywordParser(INTO) & \
+    table & \
+    insertvals
+update_statement = \
+    table & \
+    KeywordParser(SET) & \
+    setlist & \
+    where
 
 def get_and_statement():
     return and_statement
@@ -257,7 +258,13 @@ statement = \
      (KeywordParser(DELETE) & delete_statement & Optional(OperatorParser(SEMICOLON))) | \
      (KeywordParser(UPDATE) & update_statement & Optional(OperatorParser(SEMICOLON)))
 
+sql_script = AllTokensConsumed(statement)
+
 # obtain list of tokens
 lexer = Lexer(TOKENS)
 tokens = lexer.parseTokens(sql)
 print(tokens)
+
+# build AST
+result = sql_script(tokens, 0)
+result.pretty_print()
