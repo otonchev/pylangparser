@@ -128,7 +128,8 @@ OPERATORS = DOT & COMMA & COLON & SEMICOLON & L_PAR & R_PAR & L_BRACKET & \
     MOD_EQUAL & PLUS_EQUAL & MINUS_EQUAL & SHL_EQUAL & SHR_EQUAL & \
     AMPERSAND_EQUAL & CARET_EQUAL & BAR_EQUAL
 
-IDENTIFIERS = IDENTIFIER & STRING_IDENTIFIER & INT_CONSTANT & FLOAT_CONSTANT
+IDENTIFIERS = IDENTIFIER & STRING_IDENTIFIER & INT_CONSTANT & FLOAT_CONSTANT & \
+    CHAR_CONSTANT
 
 # join all token sub-groups
 TOKENS = IGNORES & KEYWORDS & OPERATORS & IDENTIFIERS
@@ -243,6 +244,21 @@ error: {
     p = 5;
   return 1;
 }
+}
+
+const gchar *
+gst_flow_get_name (GstFlowReturn ret)
+{
+  gint i;
+
+  ret = CLAMP (ret, GST_FLOW_CUSTOM_ERROR, GST_FLOW_CUSTOM_SUCCESS);
+
+  for (i = 0; i < G_N_ELEMENTS (flow_quarks); i++) {
+    p = flow_quarks[i].ret;
+    if (ret == flow_quarks[i].ret)
+      return flow_quarks[i].name;
+  }
+  return "unknown";
 }
 
 """
@@ -547,40 +563,37 @@ function_declaration = \
 # function definition
 #
 
+value = SymbolsParser(IDENTIFIER) | constant
+
+# [1]
+reflist = OperatorParser(L_BRACKET) & value & OperatorParser(R_BRACKET)
+
+# abc[1][2][3]
+arrayref = SymbolsParser(IDENTIFIER) & Repeat(reflist)
+
+# .abc
 idlist = \
     OperatorParser(DOT) & SymbolsParser(IDENTIFIER)
 
+# abc.bcd.cde
 compref = \
     OperatorParser(L_PAR) & OperatorParser(STAR) & SymbolsParser(IDENTIFIER) & \
         OperatorParser(R_PAR) & Repeat(idlist) | \
     SymbolsParser(IDENTIFIER) & Repeat(idlist)
 
-value = SymbolsParser(IDENTIFIER) | constant
+# abc[1][2].bcd.cde[1]
+arrayref_compref = RecursiveParser()
+arrayref_compref += \
+    (arrayref & OperatorParser(DOT) & SymbolsParser(IDENTIFIER) & \
+        Optional(OperatorParser(DOT) & arrayref_compref)) | \
+    (compref & OperatorParser(DOT) & arrayref & Optional(OperatorParser(DOT) & \
+        arrayref_compref))
 
-reflist = OperatorParser(L_BRACKET) & value & OperatorParser(R_BRACKET)
-
-arrayref = SymbolsParser(IDENTIFIER) & Repeat(reflist)
-
-varname = arrayref | compref | SymbolsParser(IDENTIFIER)
+varname = arrayref_compref | arrayref | compref | SymbolsParser(IDENTIFIER)
 
 type_name = \
     type_specifier & Optional(abstract_declarator) | \
     SymbolsParser(IDENTIFIER) & Optional(abstract_declarator)
-
-conditional_expression = \
-    (value & relop & value) | \
-    value
-
-simple_expression = \
-    varname | \
-    constant
-
-binary_expression = \
-    (OperatorParser(L_PAR) & SymbolsParser(IDENTIFIER) & binop & value & \
-        OperatorParser(R_PAR)) | \
-    (OperatorParser(L_PAR) & constant & binop & value & \
-        OperatorParser(R_PAR)) | \
-    (OperatorParser(L_PAR) & value & binop & value & OperatorParser(R_PAR))
 
 arglist = \
     value & ZeroOrMore(OperatorParser(COMMA) & value)
@@ -588,6 +601,24 @@ arglist = \
 call_expression = \
     SymbolsParser(IDENTIFIER) & OperatorParser(L_PAR) & Optional(arglist) & \
     OperatorParser(R_PAR)
+
+simple_expression = \
+    varname | \
+    constant
+
+conditional_expression = \
+    (value & relop & call_expression) | \
+    (value & relop & simple_expression) | \
+    call_expression | \
+    (value & relop & value) | \
+    value
+
+binary_expression = \
+    (OperatorParser(L_PAR) & SymbolsParser(IDENTIFIER) & binop & value & \
+        OperatorParser(R_PAR)) | \
+    (OperatorParser(L_PAR) & constant & binop & value & \
+        OperatorParser(R_PAR)) | \
+    (OperatorParser(L_PAR) & value & binop & value & OperatorParser(R_PAR))
 
 unary_expression = \
     simple_expression | \
@@ -669,6 +700,7 @@ goto_statement = \
 
 # notice the usage of the '+=' operator below
 statement += \
+    stop_statement | \
     goto_statement | \
     compound_statement | \
     (basic_statement & OperatorParser(SEMICOLON)) | \
@@ -729,6 +761,8 @@ stop_statement += \
     (KeywordParser(RETURN) & OperatorParser(L_PAR) & value & \
         OperatorParser(R_PAR) & OperatorParser(SEMICOLON) & \
         ZeroOrMore(dead_code)) | \
+    (KeywordParser(RETURN) & SymbolsParser(STRING_IDENTIFIER) & \
+        OperatorParser(SEMICOLON)) | \
     (goto_statement & ZeroOrMore(dead_code))
 
 labeled_statement = \
@@ -808,7 +842,7 @@ print("\n------subgroup 7.3------")
 subgroup = group.get_sub_group(3)
 subgroup.pretty_print()
 
-#print all function declarations
+# print all function declarations
 print("\n--------------function declarations--------------")
 index = 1
 group = result.get_sub_group(index)
