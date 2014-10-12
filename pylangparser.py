@@ -828,19 +828,26 @@ class AllTokensConsumed(TokenParser):
 
         parser = AllTokensConsumed(parser1 & (parser2 | parser3))
     """
+    class __AllTokensConsumed(TokenParser):
+        def __init__(self, parser):
+            self.__parser = parser
+
+        def __call__(self, tokens, pos):
+            if pos >= len(tokens):
+                return None
+            result = self.__parser(tokens, pos)
+            if not result:
+                return None
+            pos = result.get_position()
+            if pos != len(tokens):
+                return None
+            return result
+
     def __init__(self, parser):
-        self.__parser = CheckErrors (parser)
+        self.__parser = CheckErrors (self.__AllTokensConsumed(parser))
 
     def __call__(self, tokens, pos):
-        if pos >= len(tokens):
-            return None
-        result = self.__parser(tokens, pos)
-        if not result:
-            return None
-        pos = result.get_position()
-        if pos != len(tokens):
-            return None
-        return result
+        return self.__parser(tokens, pos)
 
 class RecursiveParser(TokenParser):
     """
