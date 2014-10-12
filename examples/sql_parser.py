@@ -82,6 +82,7 @@ sql = """
     SELECT CustomerName,City FROM Customers;
     SELECT CustomerName,City FROM Customers WHERE CustomerID=1.5;
     select CustomerName,City from Customers;
+    SELECT CustomerName,City FROM Customers WHERE CustomerID=1.5 AND CustomerID<>1;
 """
 
 tablename = SymbolsParser(IDENTIFIER)
@@ -218,8 +219,8 @@ not_statement = comparison | (KeywordParser(NOT) & comparison)
 def get_and_statement():
     return and_statement
 and_statement = \
-    not_statement | \
-    (not_statement & KeywordParser(AND) & RecursiveParser(get_and_statement))
+    (not_statement & KeywordParser(AND) & RecursiveParser(get_and_statement)) | \
+    not_statement
 
 def get_boolean():
     return boolean
