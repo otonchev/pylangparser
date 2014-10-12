@@ -46,7 +46,7 @@ KEYWORDS = SELECT & INSERT & DELETE & UPDATE & FROM & INTO & SET & WHERE & \
 
 IDENTIFIER = Symbols(r'[a-zA-Z_]+')
 STRING = Symbols(r'\'[a-zA-Z_]+\'')
-REALNUMBER = Symbols(r'[0-9]+\.[0-9]+')
+REALNUMBER = Symbols(r'\d+\.\d*')
 INTEGER = Symbols(r'[0-9]+')
 DATE = Symbols(r'd\'[0-9]{4}-[0-9]{2}-[0-9]{2}\'')
 TIME = Symbols(r't\'[0-9]{2}:[0-9]{2}:[0-9]{2}\'')
@@ -80,7 +80,7 @@ IgnoreTokensInAST(SEMICOLON & R_PAR & L_PAR & COMMA)
 
 sql = """
     SELECT CustomerName,City FROM Customers;
-    SELECT CustomerName FROM Customers WHERE CustomerID=1;
+    SELECT CustomerName,City FROM Customers WHERE CustomerID=1.5;
 """
 
 tablename = SymbolsParser(IDENTIFIER)
@@ -119,8 +119,9 @@ groupbyterms = \
 
 groupby = Optional(KeywordParser(GROUP_BY) & groupbyterms)
 
-simpleterm = SymbolsParser(STRING) | SymbolsParser(REALNUMBER) | \
-    SymbolsParser(DATE) | SymbolsParser(TIME) | SymbolsParser(TIMESTAMP)
+simpleterm = SymbolsParser(STRING) | SymbolsParser(INTEGER) | \
+    SymbolsParser(REALNUMBER) | SymbolsParser(DATE) | SymbolsParser(TIME) | \
+    SymbolsParser(TIMESTAMP)
 
 def get_expression():
     return expression
@@ -258,7 +259,7 @@ statement = \
      (KeywordParser(DELETE) & delete_statement & Optional(OperatorParser(SEMICOLON))) | \
      (KeywordParser(UPDATE) & update_statement & Optional(OperatorParser(SEMICOLON)))
 
-sql_script = AllTokensConsumed(statement)
+sql_script = AllTokensConsumed(Repeat(statement))
 
 # obtain list of tokens
 lexer = Lexer(TOKENS)
