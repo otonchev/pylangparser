@@ -854,9 +854,8 @@ class RecursiveParser(TokenParser):
     This parser is used for parsing recursive grammars. It can be applied
     to just any other parser:
 
-        def return_parser2():
-          return parser
-        parser = parser1 + RecursiveParser(return_parser)
+        parser = RecursiveParser()
+        parser += parser1 + parser
 
     When it should be used:
 
@@ -871,14 +870,20 @@ class RecursiveParser(TokenParser):
     is not defined yet.
     """
 
-    def __init__(self, get_parser_func):
-        self.__get_parser = get_parser_func
+    def __init__(self):
+        self.__parser = None
+
+    def __iadd__(self, right):
+        self.__parser = right
+        return self
 
     def __call__(self, tokens, pos):
         if pos >= len(tokens):
             return None
-        parser = self.__get_parser()
-        return parser(tokens, pos)
+        if not self.__parser:
+            raise ValueError("Parser not set with recursive_parser += " \
+                "another_parser")
+        return self.__parser(tokens, pos)
 
 class CustomizeResult(TokenParser):
     """
@@ -1104,12 +1109,10 @@ class ParseTests(unittest.TestCase):
 
         #print tokens
 
-        def return_parser():
-            return parser
-
-        parser = KeywordParser(self.IF) & OperatorParser(self.LBRACKET) & \
+        parser = RecursiveParser()
+        parser += KeywordParser(self.IF) & OperatorParser(self.LBRACKET) & \
             SymbolsParser(self.INT_IDENTIFIER) & OperatorParser(self.RBRACKET) & \
-            OperatorParser(self.LBRACE) & Optional(RecursiveParser(return_parser)) & \
+            OperatorParser(self.LBRACE) & Optional(parser) & \
             Optional(KeywordParser(self.RETURN) & OperatorParser(self.SEMICOLON)) & \
             OperatorParser(self.RBRACE)
         
@@ -1138,11 +1141,9 @@ class ParseTests(unittest.TestCase):
 
         assignment = OperatorParser(self.ASSIGNMENT)
 
-        def return_parser():
-            return recursive
-
-        recursive = Repeat ((OperatorParser(self.COMMA) & \
-            RecursiveParser(return_parser)) | SymbolsParser(self.IDENTIFIER))
+        recursive = RecursiveParser()
+        recursive += Repeat (OperatorParser(self.COMMA) & \
+            recursive | SymbolsParser(self.IDENTIFIER))
 
         parser = AllTokensConsumed(recursive & assignment)
 

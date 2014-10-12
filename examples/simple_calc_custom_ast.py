@@ -86,8 +86,7 @@ condition = \
     comp_operator & \
     operand
 
-def get_statement():
-    return statement
+statement = RecursiveParser()
 
 def update_condition(result):
     # p == 1
@@ -102,9 +101,10 @@ if_statement = \
     OperatorParser(LPAR) & \
     CustomizeResult (condition, update_condition) & \
     OperatorParser(RPAR) & \
-    RecursiveParser(get_statement)
+    statement
 
-statement = \
+# notice the usage of the '+=' operator below
+statement += \
     if_statement | arthm_expression
 
 program = AllTokensConsumed(ZeroOrMore(statement))

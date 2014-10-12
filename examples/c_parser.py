@@ -365,8 +365,7 @@ type_specifier = \
     enum_specifier | \
     SymbolsParser(IDENTIFIER)
 
-def get_abstract_pointer():
-    return abstract_pointer
+abstract_pointer = RecursiveParser()
 
 abstract_array_declarator_tail = \
     OperatorParser(L_BRACKET) & \
@@ -377,71 +376,70 @@ abstract_array_declarator = \
     (OperatorParser(L_BRACKET) & \
         Optional(SymbolsParser(INT_CONSTANT)) & OperatorParser(R_BRACKET) & \
         Optional(abstract_array_declarator_tail)) | \
-    (OperatorParser(L_PAR) & RecursiveParser(get_abstract_pointer) & \
-        OperatorParser(R_PAR) & OperatorParser(L_BRACKET) & \
-        Optional(SymbolsParser(INT_CONSTANT)) & OperatorParser(R_BRACKET) & \
-        Optional(abstract_array_declarator_tail))
+    (OperatorParser(L_PAR) & abstract_pointer & OperatorParser(R_PAR) & \
+        OperatorParser(L_BRACKET) & Optional(SymbolsParser(INT_CONSTANT)) & \
+        OperatorParser(R_BRACKET) & Optional(abstract_array_declarator_tail))
 
-def get_parameter_list():
-    return parameter_list
-def get_abstract_pointer():
-    return abstract_pointer
+parameter_list = RecursiveParser()
+
 abstract_direct_declarator = abstract_array_declarator | \
-    (OperatorParser(L_PAR) & RecursiveParser(get_abstract_pointer) & \
+    (OperatorParser(L_PAR) & abstract_pointer & \
     OperatorParser(R_PAR) & OperatorParser(L_PAR) & \
-    RecursiveParser(get_parameter_list) & OperatorParser(R_PAR))
+    parameter_list & OperatorParser(R_PAR))
 
-def get_abstract_pointer():
-    return abstract_pointer
-abstract_pointer = \
+# notice the usage of the '+=' operator below
+abstract_pointer += \
     (OperatorParser(STAR) & Optional(abstract_direct_declarator)) | \
-    (OperatorParser(STAR) & RecursiveParser(get_abstract_pointer))
+    (OperatorParser(STAR) & abstract_pointer)
 
 abstract_declarator = abstract_pointer | abstract_direct_declarator
 
-def get_declarator():
-    return declarator
-parameter_declaration = (type_specifier & RecursiveParser(get_declarator)) | \
-    (type_specifier & abstract_declarator) | (SymbolsParser(IDENTIFIER) & \
-    RecursiveParser(get_declarator)) | (SymbolsParser(IDENTIFIER) & \
-    abstract_declarator)
+declarator = RecursiveParser()
 
-parameter_list = parameter_declaration & \
+parameter_declaration = (type_specifier & declarator) | \
+    (type_specifier & abstract_declarator) | (SymbolsParser(IDENTIFIER) & \
+    declarator) | (SymbolsParser(IDENTIFIER) & abstract_declarator)
+
+# notice the usage of the '+=' operator below
+parameter_list += parameter_declaration & \
     Optional(Repeat(OperatorParser(COMMA) & parameter_declaration))
 
-def get_pointer():
-    return pointer
+pointer = RecursiveParser()
+
 array_declarator_tail = \
     OperatorParser(L_BRACKET) & Optional(SymbolsParser(INT_CONSTANT)) & \
     OperatorParser(R_BRACKET)
 array_declarator = (SymbolsParser(IDENTIFIER) & OperatorParser(L_BRACKET) & \
     Optional(SymbolsParser(INT_CONSTANT)) & OperatorParser(R_BRACKET) & \
         ZeroOrMore(array_declarator_tail)) | \
-    (OperatorParser(L_PAR) & RecursiveParser(get_pointer) & \
+    (OperatorParser(L_PAR) & pointer & \
         OperatorParser(R_PAR) & OperatorParser(L_BRACKET) & \
         Optional(SymbolsParser(INT_CONSTANT)) & OperatorParser(R_BRACKET) & \
         ZeroOrMore(array_declarator_tail))
 
-def get_function_pointer_declarator():
-    return function_pointer_declarator
+function_pointer_declarator = RecursiveParser()
+
 direct_declarator = array_declarator | SymbolsParser(IDENTIFIER) | \
-    RecursiveParser(get_function_pointer_declarator)
+    function_pointer_declarator
 
-pointer = (OperatorParser(STAR) & direct_declarator) | (OperatorParser(STAR) & \
-    RecursiveParser(get_pointer))
+# notice the usage of the '+=' operator below
+pointer += (OperatorParser(STAR) & direct_declarator) | (OperatorParser(STAR) & \
+    pointer)
 
-function_pointer_declarator = OperatorParser(L_PAR) & pointer & \
+# notice the usage of the '+=' operator below
+function_pointer_declarator += OperatorParser(L_PAR) & pointer & \
     OperatorParser(R_PAR) & OperatorParser(L_PAR) & Optional(parameter_list) & \
     OperatorParser(R_PAR)
 
-declarator = pointer | direct_declarator
+# notice the usage of the '+=' operator below
+declarator += pointer | direct_declarator
 
-def get_rhs():
-    return rhs
+rhs = RecursiveParser()
+
 declarator_with_modifier = \
     (pointer | direct_declarator) & \
     Optional(OperatorParser(EQUAL) & \
-    RecursiveParser(get_rhs))
+    rhs)
 
 member_declaration = type_specifier & declarator & OperatorParser(SEMICOLON)
 
@@ -517,11 +515,10 @@ enum_declaration = \
 # function declaration
 #
 
-def get_pointer_function():
-    return pointer_function
+pointer_function = RecursiveParser()
 
 array_function_declarator = \
-    (OperatorParser(L_PAR) & RecursiveParser(get_pointer_function) & \
+    (OperatorParser(L_PAR) & pointer_function & \
     OperatorParser(R_PAR) & Repeat(OperatorParser(L_BRACKET) & \
     SymbolsParser(INT_CONSTANT) & OperatorParser(R_BRACKET)))
 
@@ -529,13 +526,14 @@ direct_function_declarator = \
     array_function_declarator | \
     (SymbolsParser(IDENTIFIER) & OperatorParser(L_PAR) & \
         ZeroOrMore(parameter_list) & OperatorParser(R_PAR)) | \
-    (OperatorParser(L_PAR) & RecursiveParser(get_pointer_function) & \
+    (OperatorParser(L_PAR) & pointer_function & \
         OperatorParser(R_PAR) & OperatorParser(L_PAR) & \
         ZeroOrMore(parameter_list) & OperatorParser(R_PAR))
 
-pointer_function = \
+# notice the usage of the '+=' operator below
+pointer_function += \
     (OperatorParser(STAR) & direct_function_declarator) | \
-    (OperatorParser(STAR) & RecursiveParser(get_pointer_function))
+    (OperatorParser(STAR) & pointer_function)
 
 function_declarator = \
     direct_function_declarator | pointer_function
@@ -604,7 +602,8 @@ unary_expression = \
     (OperatorParser(L_PAR) & type_name & OperatorParser(R_PAR) & varname) | \
     (OperatorParser(L_PAR) & type_name & OperatorParser(R_PAR) & constant)
 
-rhs = \
+# notice the usage of the '+=' operator below
+rhs += \
     call_expression | \
     binary_expression | \
     unary_expression
@@ -633,32 +632,32 @@ basic_statement = \
     (OperatorParser(L_PAR) & type_name & OperatorParser(R_PAR) & \
         constant)
 
-def get_statement():
-    return statement
-def get_stop_statement():
-    return stop_statement
+statement = RecursiveParser()
+
+stop_statement = RecursiveParser()
+
 compound_statement = \
-    OperatorParser(L_BRACE) & ZeroOrMore(RecursiveParser(get_statement)) & \
-    Optional(RecursiveParser(get_stop_statement)) & OperatorParser(R_BRACE)
+    OperatorParser(L_BRACE) & ZeroOrMore(statement) & \
+    Optional(stop_statement) & OperatorParser(R_BRACE)
 
 default_statement = \
     (KeywordParser(DEFAULT) & OperatorParser(COLON) & \
-        OperatorParser(L_BRACE) & ZeroOrMore(RecursiveParser(get_statement)) & \
-        Optional(RecursiveParser(get_stop_statement)) & \
+        OperatorParser(L_BRACE) & ZeroOrMore(statement) & \
+        Optional(stop_statement) & \
         OperatorParser(R_BRACE)) | \
     (KeywordParser(DEFAULT) & OperatorParser(COLON) & \
-        ZeroOrMore(RecursiveParser(get_statement)) & \
-        Optional(RecursiveParser(get_stop_statement))) | \
+        ZeroOrMore(statement) & \
+        Optional(stop_statement)) | \
     (KeywordParser(DEFAULT) & OperatorParser(COLON))
 
 case_statement = \
     (KeywordParser(CASE) & constant & OperatorParser(COLON) & \
-        OperatorParser(L_BRACE) & ZeroOrMore(RecursiveParser(get_statement)) & \
-        Optional(RecursiveParser(get_stop_statement)) & \
+        OperatorParser(L_BRACE) & ZeroOrMore(statement) & \
+        Optional(stop_statement) & \
         OperatorParser(R_BRACE)) | \
     (KeywordParser(CASE) & constant & OperatorParser(COLON) & \
-        ZeroOrMore(RecursiveParser(get_statement)) & \
-        Optional(RecursiveParser(get_stop_statement))) | \
+        ZeroOrMore(statement) & \
+        Optional(stop_statement)) | \
     (KeywordParser(CASE) & constant & OperatorParser(COLON))
 
 case_statements = \
@@ -668,7 +667,8 @@ case_statements = \
 goto_statement = \
     KeywordParser(GOTO) & SymbolsParser(IDENTIFIER) & OperatorParser(SEMICOLON)
 
-statement = \
+# notice the usage of the '+=' operator below
+statement += \
     goto_statement | \
     compound_statement | \
     (basic_statement & OperatorParser(SEMICOLON)) | \
@@ -679,21 +679,20 @@ statement = \
         OperatorParser(R_PAR) & OperatorParser(SEMICOLON) & \
         KeywordParser(ELSE) & compound_statement) | \
     (KeywordParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
-        OperatorParser(R_PAR) & RecursiveParser(get_statement) & \
+        OperatorParser(R_PAR) & statement & \
         KeywordParser(ELSE) & compound_statement) | \
     (KeywordParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
         OperatorParser(R_PAR) & compound_statement & KeywordParser(ELSE) & \
         compound_statement) | \
     (KeywordParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
         OperatorParser(R_PAR) & compound_statement & KeywordParser(ELSE) & \
-        RecursiveParser(get_statement)) | \
+        statement) | \
     (KeywordParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
-        OperatorParser(R_PAR) & RecursiveParser(get_statement) & \
-        KeywordParser(ELSE) & RecursiveParser(get_statement)) | \
+        OperatorParser(R_PAR) & statement & KeywordParser(ELSE) & statement) | \
     (KeywordParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
         OperatorParser(R_PAR) & compound_statement) | \
     (KeywordParser(IF) & OperatorParser(L_PAR) & conditional_expression & \
-        OperatorParser(R_PAR) & RecursiveParser(get_statement)) | \
+        OperatorParser(R_PAR) & statement) | \
     (KeywordParser(WHILE) & OperatorParser(L_PAR) & conditional_expression & \
         OperatorParser(R_PAR) & compound_statement) | \
     (KeywordParser(DO) & compound_statement & KeywordParser(WHILE) & \
@@ -714,7 +713,8 @@ dead_code = \
     (KeywordParser(RETURN) & OperatorParser(L_PAR) & value & \
         OperatorParser(R_PAR) & OperatorParser(SEMICOLON))
 
-stop_statement = \
+# notice the usage of the '+=' operator below
+stop_statement += \
     (KeywordParser(RETURN) & statement & ZeroOrMore(dead_code)) | \
     (KeywordParser(BREAK) & OperatorParser(SEMICOLON) & \
         ZeroOrMore(dead_code)) | \

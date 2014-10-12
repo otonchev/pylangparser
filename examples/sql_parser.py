@@ -94,10 +94,9 @@ aliasname = SymbolsParser(IDENTIFIER)
 
 tableref = table | (table & aliasname)
 
-def get_tablelist():
-    return tablelist
-tablelist = \
-    (tableref & OperatorParser(COMMA) & RecursiveParser(get_tablelist)) | \
+tablelist = RecursiveParser()
+tablelist += \
+    (tableref & OperatorParser(COMMA) & tablelist) | \
     tableref
 
 colref = (aliasname & OperatorParser(COMMA) & columnname) | columnname
@@ -106,18 +105,16 @@ asc = Optional(KeywordParser(ASC) | KeywordParser(DESC))
 
 orderbyterm = (colref & asc) | (SymbolsParser(INTEGER) & asc)
 
-def get_orderbyterms():
-    return orderbyterms
-orderbyterms = orderbyterm | \
-    (orderbyterm & OperatorParser(COMMA) & RecursiveParser(get_orderbyterms))
+orderbyterms = RecursiveParser()
+orderbyterms += orderbyterm | \
+    (orderbyterm & OperatorParser(COMMA) & orderbyterms)
 
 orderby = Optional(KeywordParser(ORDER_BY) & orderbyterms)
 
-def get_groupbyterms():
-    return groupbyterms
-groupbyterms = \
+groupbyterms = RecursiveParser()
+groupbyterms += \
     colref | \
-    (colref & OperatorParser(COMMA) & RecursiveParser(get_groupbyterms))
+    (colref & OperatorParser(COMMA) & groupbyterms)
 
 groupby = Optional(KeywordParser(GROUP_BY) & groupbyterms)
 
@@ -125,24 +122,22 @@ simpleterm = SymbolsParser(STRING) | SymbolsParser(INTEGER) | \
     SymbolsParser(REALNUMBER) | SymbolsParser(DATE) | SymbolsParser(TIME) | \
     SymbolsParser(TIMESTAMP)
 
-def get_expression():
-    return expression
+expression = RecursiveParser()
 
 aggterm = \
     (KeywordParser(COUNT) & OperatorParser(L_PAR) & OperatorParser(STAR) & \
         OperatorParser(R_PAR)) | \
-    (KeywordParser(AVG) & OperatorParser(L_PAR) & RecursiveParser(get_expression) & \
+    (KeywordParser(AVG) & OperatorParser(L_PAR) & expression & \
         OperatorParser(R_PAR)) | \
-    (KeywordParser(MAX) & OperatorParser(L_PAR) & RecursiveParser(get_expression) & \
+    (KeywordParser(MAX) & OperatorParser(L_PAR) & expression & \
         OperatorParser(R_PAR)) | \
-    (KeywordParser(MIN) & OperatorParser(L_PAR) & RecursiveParser(get_expression) & \
+    (KeywordParser(MIN) & OperatorParser(L_PAR) & expression & \
         OperatorParser(R_PAR)) | \
-    (KeywordParser(SUM) & OperatorParser(L_PAR) & RecursiveParser(get_expression) & \
+    (KeywordParser(SUM) & OperatorParser(L_PAR) & expression & \
         OperatorParser(R_PAR))
 
 term = \
-    (OperatorParser(L_PAR) & RecursiveParser(get_expression) & \
-        OperatorParser(R_PAR)) | \
+    (OperatorParser(L_PAR) & expression & OperatorParser(R_PAR)) | \
     colref | \
     simpleterm | \
     aggterm
@@ -155,13 +150,12 @@ neg = \
 times = \
     neg & ZeroOrMore((OperatorParser(STAR) | OperatorParser(DIV)) & neg)
 
-expression = \
+expression += \
     times & ZeroOrMore((OperatorParser(PLUS) | OperatorParser(MINUS)) & times)
 
-def get_selectlist():
-    return selectlist
-selectlist = \
-    (expression & OperatorParser(COMMA) & RecursiveParser(get_selectlist)) | \
+selectlist = RecursiveParser()
+selectlist += \
+    (expression & OperatorParser(COMMA) & selectlist) | \
     expression
 
 selectallcols = Optional(KeywordParser(ALL) | KeywordParser(DISTINCT))
@@ -169,16 +163,13 @@ selectcols = (selectallcols & OperatorParser(STAR)) | \
     (selectallcols & selectlist)
 
 column = columnname
-def get_columnlist():
-    return columnlist
-columnlist = column & RecursiveParser(get_columnlist) | column
+columnlist = RecursiveParser()
+columnlist += (column & columnlist) | column
 
-def get_valuelist():
-    return valuelist
-valuelist = \
-    (KeywordParser(NULL) & OperatorParser(COMMA) & \
-        RecursiveParser(get_valuelist)) | \
-    (expression & OperatorParser(COMMA) & RecursiveParser(get_valuelist)) | \
+valuelist = RecursiveParser()
+valuelist += \
+    (KeywordParser(NULL) & OperatorParser(COMMA) & valuelist) | \
+    (expression & OperatorParser(COMMA) & valuelist) | \
     expression | \
     KeywordParser(NULL)
 
@@ -200,10 +191,10 @@ pattern = SymbolsParser(STRING)
 op = OperatorParser(GT) | OperatorParser(GE) | OperatorParser(LE) | \
     OperatorParser(LQ) | OperatorParser(ASSIGNMENT) | OperatorParser(DIFFERENT)
 
-def get_boolean():
-    return boolean
+boolean = RecursiveParser()
+
 comparison = \
-    (OperatorParser(L_PAR) & RecursiveParser(get_boolean) & OperatorParser(R_PAR) & colref & \
+    (OperatorParser(L_PAR) & boolean & OperatorParser(R_PAR) & colref & \
         KeywordParser(IS) & KeywordParser(NULL)) | \
     (colref & KeywordParser(IS) & KeywordParser(NOT) & KeywordParser(NULL)) | \
     (expression & KeywordParser(LIKE) & pattern) | \
@@ -216,16 +207,13 @@ comparison = \
 
 not_statement = comparison | (KeywordParser(NOT) & comparison)
 
-def get_and_statement():
-    return and_statement
-and_statement = \
-    (not_statement & KeywordParser(AND) & RecursiveParser(get_and_statement)) | \
+and_statement = RecursiveParser()
+
+and_statement += \
+    (not_statement & KeywordParser(AND) & and_statement) | \
     not_statement
 
-def get_boolean():
-    return boolean
-boolean = and_statement | (and_statement & KeywordParser(OR) & \
-    RecursiveParser(get_boolean))
+boolean += and_statement | (and_statement & KeywordParser(OR) & boolean)
 
 where = Optional(KeywordParser(WHERE) & boolean)
 having = Optional(KeywordParser(HAVING) & boolean)
@@ -251,9 +239,6 @@ update_statement = \
     KeywordParser(SET) & \
     setlist & \
     where
-
-def get_and_statement():
-    return and_statement
 
 statement = \
      (KeywordParser(SELECT) & select_statement & Optional(OperatorParser(SEMICOLON))) | \

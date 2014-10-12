@@ -66,17 +66,17 @@ condition = \
     comp_operator & \
     operand
 
-def get_statement():
-    return statement
+statement = RecursiveParser()
 
 if_statement = \
     KeywordParser(IF) & \
     OperatorParser(LPAR) & \
     condition & \
     OperatorParser(RPAR) & \
-    RecursiveParser(get_statement)
+    statement
 
-statement = \
+# not the usage of the '+=' operator below
+statement += \
     if_statement | arthm_expression
 
 program = AllTokensConsumed(ZeroOrMore(statement))
