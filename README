@@ -2,20 +2,19 @@ pylangparser - Simple language parsing from Python. Project provides classes
 for parsing formal languages in an easy way. Without using any external
 libraries, only unittest, re and pprint. There is a Lexer and a Parser class.
 The lexer produces list of tokens that the Parser then uses to build the AST.
-There is support for building customized AST's. The lexer can also be used as
-a stand alone component.
-The grammars are defined directly into the Python code.
+The lexer can also be used as a stand alone component. There is support for
+building customized AST’s. The grammars are defined directly into the Python
+code.
 
-In the examples folder you will find some simple example scripts
-demonstrating basic usage of the parser plus some more useful and complex
-ones. For example, there is a script for parsing C source code and building
-and iterating the AST.
+In the examples folder you will find both simple example scripts demonstrating
+basic usage of the parser and some more useful and complex ones. For example,
+there is a script for parsing C source code and building and iterating the AST.
+SQL parser will be added soon too.
 
-Project's wiki page:
-    https://github.com/otonchev/pylangparser/wiki
-
-Note: Documentation is not complete yet.
+Note: Documentation is not fully complete yet. Existing APIs can still change.
 
 Feel free to send suggestions, comments and patches to:
     Ognyan Tonchev (otonchev at gmail com)
 
+Project's wiki page:
+    https://github.com/otonchev/pylangparser/wiki
