@@ -1,7 +1,9 @@
-# Example usage of the Parser. The test parses a C program
-# and validates the grammar. The simplified C grammar used in the example
-# is taken from the SableCC project. See c_parser_grammar.txt for more
-# details.
+# Example usage of the Parser. The test parses a C program and
+# validates the grammar. The grammar used in the example is
+# based on the simplified C grammar from the SableCC project.
+# See c_parser_grammar.txt for more details. Also note that this
+# file is unmodified and does not contain the extensions made
+# to the grammar for the purpose of this test.
 #
 # Copyright, 2014, Ognyan Tonchev (otonchev at gmail com)
 #
@@ -93,7 +95,7 @@ BAR_EQUAL = Operator(r'|=')
 
 IDENTIFIER = Symbols(r'[A-Za-z_]+[A-Za-z0-9_]*')
 STRING_IDENTIFIER = Symbols(r'\".*\"')
-INT_CONSTANT = Symbols(r'(0x){0,1}[0-9]+')
+INT_CONSTANT = Symbols(r'(0x[0-9A-Fa-f]*|\d+)')
 FLOAT_CONSTANT = Symbols(r'[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?')
 CHAR_CONSTANT = Symbols(r'\'.\'')
 
@@ -178,6 +180,18 @@ func2(const int p, char t) {
 
   q = 5.5;
   func(12, func1(42), 42);
+
+  printf ("hello world: %" GST_TIME_FORMAT, time);
+
+  best = (GstMatroskaPad *) data;
+
+  gst_ebml_write_set_cache (ebml, 0x40);
+
+  /* FIXME: mux->doctype_version && !(mux > 1) */
+  if (mux > 1 && !write_duration) {
+    if (is_video_keyframe)
+      flags += 0x80;
+  }
 
   {
     {
@@ -299,6 +313,22 @@ binop = \
     OperatorParser(BAR) | \
     OperatorParser(SHL) | \
     OperatorParser(SHR) | \
+    OperatorParser(AMPERSAND_AMPERSAND) | \
+    OperatorParser(BAR_BAR)
+
+compassignop = \
+    OperatorParser(PLUS_EQUAL) | \
+    OperatorParser(MINUS_EQUAL) | \
+    OperatorParser(STAR_EQUAL) | \
+    OperatorParser(DIV_EQUAL) | \
+    OperatorParser(MOD_EQUAL) | \
+    OperatorParser(AMPERSAND_EQUAL) | \
+    OperatorParser(BAR_EQUAL) | \
+    OperatorParser(CARET_EQUAL) | \
+    OperatorParser(SHL_EQUAL) | \
+    OperatorParser(SHR_EQUAL)
+
+compop = \
     OperatorParser(AMPERSAND_AMPERSAND) | \
     OperatorParser(BAR_BAR)
 
@@ -565,6 +595,12 @@ function_declaration = \
 
 value = SymbolsParser(IDENTIFIER) | constant
 
+# "best pad - buffer ts %" GST_TIME_FORMAT " dur %" GST_TIME_FORMAT
+string_value = RecursiveParser()
+string_value += \
+    (SymbolsParser(STRING_IDENTIFIER) | SymbolsParser(IDENTIFIER)) & \
+        ZeroOrMore(string_value)
+
 # [1]
 reflist = OperatorParser(L_BRACKET) & value & OperatorParser(R_BRACKET)
 
@@ -601,7 +637,7 @@ call_expression = \
     SymbolsParser(IDENTIFIER) & OperatorParser(L_PAR) & Optional(arglist) & \
     OperatorParser(R_PAR)
 
-arg = call_expression | value
+arg = call_expression | value | string_value
 arglist += \
     arg & ZeroOrMore(OperatorParser(COMMA) & arg)
 
@@ -609,12 +645,15 @@ simple_expression = \
     varname | \
     constant
 
-conditional_expression = \
+sub_conditional_expression = \
     (value & relop & call_expression) | \
     (value & relop & simple_expression) | \
     call_expression | \
     (value & relop & value) | \
     value
+
+conditional_expression = \
+    sub_conditional_expression & ZeroOrMore(compop & sub_conditional_expression)
 
 binary_expression = \
     (OperatorParser(L_PAR) & SymbolsParser(IDENTIFIER) & binop & value & \
@@ -644,6 +683,7 @@ rhs += \
 
 modify_expression = \
     (varname & OperatorParser(EQUAL) & rhs) | \
+    (varname & compassignop & rhs) | \
     (varname & postfop) | \
     (prefop & varname) | \
     (OperatorParser(L_PAR) & OperatorParser(STAR) & \
