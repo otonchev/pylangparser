@@ -177,7 +177,7 @@ func2(const int p, char t) {
   unsigned short j;
 
   q = 5.5;
-  func(12, q, 42);
+  func(12, func1(42), 42);
 
   {
     {
@@ -595,12 +595,15 @@ type_name = \
     type_specifier & Optional(abstract_declarator) | \
     SymbolsParser(IDENTIFIER) & Optional(abstract_declarator)
 
-arglist = \
-    value & ZeroOrMore(OperatorParser(COMMA) & value)
+arglist = RecursiveParser()
 
 call_expression = \
     SymbolsParser(IDENTIFIER) & OperatorParser(L_PAR) & Optional(arglist) & \
     OperatorParser(R_PAR)
+
+arg = call_expression | value
+arglist += \
+    arg & ZeroOrMore(OperatorParser(COMMA) & arg)
 
 simple_expression = \
     varname | \
