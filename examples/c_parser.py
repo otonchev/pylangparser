@@ -187,8 +187,8 @@ func2(const int p, char t) {
 
   gst_ebml_write_set_cache (ebml, 0x40);
 
-  /* FIXME: mux->doctype_version && !(mux > 1) */
-  if (mux > 1 && !write_duration) {
+  /* FIXME: (mux > 1) */
+  if (mux->doctype_version > 1 && !write_duration) {
     if (is_video_keyframe)
       flags += 0x80;
   }
@@ -291,6 +291,10 @@ unop = \
     OperatorParser(MINUS) | \
     OperatorParser(TILDE) | \
     OperatorParser(EXCL_MARK)
+
+memberop = \
+    OperatorParser(DOT) | \
+    OperatorParser(ARROW)
 
 relop = \
     OperatorParser(EQ) | \
@@ -592,8 +596,9 @@ function_declaration = \
 #
 # function definition
 #
+arrayref_compref = RecursiveParser()
 
-value = SymbolsParser(IDENTIFIER) | constant
+value = RecursiveParser()
 
 # "best pad - buffer ts %" GST_TIME_FORMAT " dur %" GST_TIME_FORMAT
 string_value = RecursiveParser()
@@ -609,7 +614,7 @@ arrayref = SymbolsParser(IDENTIFIER) & Repeat(reflist)
 
 # .abc
 idlist = \
-    OperatorParser(DOT) & SymbolsParser(IDENTIFIER)
+    memberop & SymbolsParser(IDENTIFIER)
 
 # abc.bcd.cde
 compref = \
@@ -617,13 +622,19 @@ compref = \
         OperatorParser(R_PAR) & Repeat(idlist) | \
     SymbolsParser(IDENTIFIER) & Repeat(idlist)
 
-# abc[1][2].bcd.cde[1]
+# abc[1][2].bcd.cde[1] || abc.bcd[1][2].cde
 arrayref_compref = RecursiveParser()
 arrayref_compref += \
-    (arrayref & OperatorParser(DOT) & SymbolsParser(IDENTIFIER) & \
-        Optional(OperatorParser(DOT) & arrayref_compref)) | \
-    (compref & OperatorParser(DOT) & arrayref & Optional(OperatorParser(DOT) & \
-        arrayref_compref))
+    (arrayref & memberop & SymbolsParser(IDENTIFIER) & Optional(memberop & \
+        arrayref_compref)) | \
+    (compref & memberop & arrayref & Optional(memberop & arrayref_compref))
+
+value += \
+    arrayref_compref | \
+    arrayref | \
+    compref | \
+    SymbolsParser(IDENTIFIER) | \
+    constant
 
 varname = arrayref_compref | arrayref | compref | SymbolsParser(IDENTIFIER)
 
@@ -648,9 +659,9 @@ simple_expression = \
 sub_conditional_expression = \
     (value & relop & call_expression) | \
     (value & relop & simple_expression) | \
-    call_expression | \
     (value & relop & value) | \
-    value
+    value | \
+    call_expression
 
 conditional_expression = \
     sub_conditional_expression & ZeroOrMore(compop & sub_conditional_expression)
