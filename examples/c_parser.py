@@ -187,11 +187,13 @@ func2(const int p, char t) {
 
   gst_ebml_write_set_cache (ebml, 0x40);
 
-  /* FIXME: (mux > 1) */
   if (mux->doctype_version > 1 && !write_duration) {
     if (is_video_keyframe)
       flags += 0x80;
   }
+
+  if (!(a>b) && !c)
+    f();
 
   {
     {
@@ -663,8 +665,14 @@ sub_conditional_expression = \
     value | \
     call_expression
 
+main_sub_conditional_expression = \
+    (Optional(OperatorParser(EXCL_MARK)) & OperatorParser(L_PAR) & \
+        sub_conditional_expression & OperatorParser(R_PAR)) | \
+    sub_conditional_expression
+
 conditional_expression = \
-    sub_conditional_expression & ZeroOrMore(compop & sub_conditional_expression)
+    main_sub_conditional_expression & ZeroOrMore(compop & \
+        main_sub_conditional_expression)
 
 binary_expression = \
     (OperatorParser(L_PAR) & SymbolsParser(IDENTIFIER) & binop & value & \
