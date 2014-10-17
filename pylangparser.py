@@ -367,7 +367,7 @@ class ParserResult:
     TokenParser's use this class to accumulate result from parsing the
     token list returned by the Lexer.
     """
-    def __init__(self, token, pos, instance=None):
+    def __init__(self, token, pos, instance):
         # __token:          is either a string, a ParserResult, or a tuple of
         #     ParserResult's
         # __position:       is the position of the next token in the lex list
@@ -507,6 +507,21 @@ class ParserResult:
                 return True
         return False
 
+    def get_instances(self):
+        """
+        get a list of all TokenParser's which were applied when generating the
+        ParseResult. This function is useful for debug purposes.
+        List can be printed as string, set name for each parser in the grammar
+        in order to get pretty info:
+
+            parser = OperatorParser(IF).set_name("IF") | \
+                OperatorParser(WHILE).set_name("WHILE")
+            parser &= "parser_name" # here we set a name for the top level parser
+            result = parser(tokens, 0)
+            print("applied parsers: %s" % result.get_instances())
+        """
+        return self.__token_instances
+
     def is_empty(self):
         """ check if ParserResult contains empty token """
         return (self.__token == None)
@@ -550,6 +565,8 @@ class TokenParser:
         parser_result = parser(tokens_list, 0)
         parser_result.pretty_print()
     """
+    def __init__(self):
+        self.__name = "<no_name_set>"
 
     def __call__(self, tokens, pos):
         raise NotImplementedError("Method should be implemented")
@@ -562,6 +579,43 @@ class TokenParser:
 
     def __or__(self, right):
         return SelectParser(self, right)
+
+    def __iand__(self, right):
+        """
+        set name for a given parser by using the '&=' operator. This is useful
+        for debug purposes only.
+
+            parser = OperatorParser(IF) | OperatorParser(WHILE)
+            parser &= "parser_name" # here we set a name for the top level parser
+
+        Each ParserResult contains a list of all parsers that were applied when it
+        was generated. To print the list simply use:
+
+            result = parser(tokens, 0)
+            print("applied parsers: %s" % result.get_instances())
+        """
+        self.__name = right
+        print "set: %s, %s" % (self.__name, self)
+        return self
+
+    def set_name(self, name):
+        """
+        set name for a given parser. This is useful for debug purposes only.
+
+            parser = OperatorParser(IF).set_name("IF") | \
+                OperatorParser(WHILE).set_name("WHILE")
+
+        Each ParserResult contains a list of all parsers that were applied when it
+        was generated. To print the list simply use:
+
+            result = parser(tokens, 0)
+            print("applied parsers: %s" % result.get_instances())
+        """
+        self.__name = name
+        return self
+
+    def __repr__(self):
+        return self.__name
 
 class CombineTwoParsers(TokenParser):
     """
@@ -579,6 +633,7 @@ class CombineTwoParsers(TokenParser):
     """
 
     def __init__(self, first, second):
+        TokenParser.__init__(self)
         self.first = first
         self.second = second
 
@@ -588,7 +643,7 @@ class CombineTwoParsers(TokenParser):
             second_res = self.second(tokens, first_res.get_position())
             if second_res:
                 if first_res.is_empty() or first_res.is_ignore():
-                    second_res.add_instance(self)
+                    first_res.add_instance(self)
                     return second_res
                 if second_res.is_empty() or second_res.is_ignore():
                     # we are ignoring second result, update next tokens
@@ -615,6 +670,7 @@ class CombineManyParsers(TokenParser):
     """
 
     def __init__(self, first, second):
+        TokenParser.__init__(self)
         self.parsers = []
         if isinstance(first, CombineManyParsers):
             self.parsers = self.parsers + first.parsers
@@ -636,7 +692,7 @@ class CombineManyParsers(TokenParser):
                 continue
             res.add_instance(self)
             result = result + (res,)
-        return ParserResult(result, pos)
+        return ParserResult(result, pos, self)
 
 class SelectParser(TokenParser):
     """
@@ -649,6 +705,7 @@ class SelectParser(TokenParser):
     """
 
     def __init__(self, first, second):
+        TokenParser.__init__(self)
         self.first = first
         self.second = second
 
@@ -673,6 +730,7 @@ class KeywordParser(TokenParser):
     """
 
     def __init__(self, token):
+        TokenParser.__init__(self)
         if not isinstance(token, Keyword):
             raise TypeError("argument '%s' must be a Keyword" % token)
         self.__token = token
@@ -696,6 +754,7 @@ class OperatorParser(TokenParser):
     """
 
     def __init__(self, token):
+        TokenParser.__init__(self)
         if not isinstance(token, Operator):
             raise TypeError("argument '%s' must be an Operator" % token)
         self.__token = token
@@ -719,6 +778,7 @@ class SymbolsParser(TokenParser):
     """
 
     def __init__(self, instance):
+        TokenParser.__init__(self)
         if not isinstance(instance, Symbols):
             raise TypeError("argument '%s' must be a Symbol" % instance)
         self.__instance = instance
@@ -742,6 +802,7 @@ class Optional(TokenParser):
     """
 
     def __init__(self, parser):
+        TokenParser.__init__(self)
         self.__parser = parser
 
     def __call__(self, tokens, pos):
@@ -749,8 +810,9 @@ class Optional(TokenParser):
             return None
         result = self.__parser(tokens, pos)
         if result:
+            result.add_instance(self)
             return result
-        return ParserResult(None, pos)
+        return ParserResult(None, pos, self)
 
 class ZeroOrMore(TokenParser):
     """
@@ -762,6 +824,7 @@ class ZeroOrMore(TokenParser):
     """
 
     def __init__(self, parser):
+        TokenParser.__init__(self)
         self.__parser = parser
 
     def __call__(self, tokens, pos):
@@ -772,6 +835,7 @@ class ZeroOrMore(TokenParser):
             result = self.__parser(tokens, pos)
             if not result:
                 break
+            result.add_instance(self)
             pos = result.get_position()
             if not results:
                 results = result
@@ -794,6 +858,7 @@ class Repeat(TokenParser):
     """
 
     def __init__(self, parser):
+        TokenParser.__init__(self)
         self.__parser = parser
 
     def __call__(self, tokens, pos):
@@ -804,6 +869,7 @@ class Repeat(TokenParser):
             result = self.__parser(tokens, pos)
             if not result:
                 break
+            result.add_instance(self)
             pos = result.get_position()
             if not results:
                 results = result
@@ -830,6 +896,7 @@ class AllTokensConsumed(TokenParser):
     """
     class __AllTokensConsumed(TokenParser):
         def __init__(self, parser):
+            TokenParser.__init__(self)
             self.__parser = parser
 
         def __call__(self, tokens, pos):
@@ -838,16 +905,21 @@ class AllTokensConsumed(TokenParser):
             result = self.__parser(tokens, pos)
             if not result:
                 return None
+            result.add_instance(self)
             pos = result.get_position()
             if pos != len(tokens):
                 return None
             return result
 
     def __init__(self, parser):
+        TokenParser.__init__(self)
         self.__parser = CheckErrors (self.__AllTokensConsumed(parser))
 
     def __call__(self, tokens, pos):
-        return self.__parser(tokens, pos)
+        result = self.__parser(tokens, pos)
+        if result:
+            result.add_instance(self)
+        return result
 
 class RecursiveParser(TokenParser):
     """
@@ -871,6 +943,7 @@ class RecursiveParser(TokenParser):
     """
 
     def __init__(self):
+        TokenParser.__init__(self)
         self.__parser = None
 
     def __iadd__(self, right):
@@ -883,7 +956,10 @@ class RecursiveParser(TokenParser):
         if not self.__parser:
             raise ValueError("Parser not set with recursive_parser += " \
                 "another_parser")
-        return self.__parser(tokens, pos)
+        result = self.__parser(tokens, pos)
+        if result:
+            result.add_instance(self)
+        return result
 
 class CustomizeResult(TokenParser):
     """
@@ -909,6 +985,7 @@ class CustomizeResult(TokenParser):
         result = ('+', '1', ('+', 3, 2))
     """
     def __init__(self, parser, customize_func=None):
+        TokenParser.__init__(self)
         self.__func = customize_func
         if not self.__func:
             self.__func = __default_customize
@@ -921,7 +998,10 @@ class CustomizeResult(TokenParser):
         result = self.__parser(tokens, pos)
         if not result:
             return result
-        return self.__func(result)
+        result = self.__func(result)
+        if result:
+            result.add_instance(self)
+        return result
 
 class CheckErrors(TokenParser):
     """
@@ -933,6 +1013,7 @@ class CheckErrors(TokenParser):
     """
 
     def __init__(self, parser):
+        TokenParser.__init__(self)
         self.__parser = parser
 
     def __call__(self, tokens, pos):
