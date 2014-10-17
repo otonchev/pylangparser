@@ -461,6 +461,7 @@ pointer = RecursiveParser()
 array_declarator_tail = \
     OperatorParser(L_BRACKET) & Optional(SymbolsParser(INT_CONSTANT)) & \
     OperatorParser(R_BRACKET)
+
 array_declarator = (SymbolsParser(IDENTIFIER) & OperatorParser(L_BRACKET) & \
     Optional(SymbolsParser(INT_CONSTANT)) & OperatorParser(R_BRACKET) & \
         ZeroOrMore(array_declarator_tail)) | \
@@ -554,6 +555,7 @@ enumerator = \
     (SymbolsParser(IDENTIFIER) & OperatorParser(EQUAL) & \
         constant) | \
     SymbolsParser(IDENTIFIER)
+
 #
 #  enum declaration
 #
@@ -561,7 +563,6 @@ enum_declaration = \
     KeywordParser(ENUM) & SymbolsParser(IDENTIFIER) & \
     OperatorParser(L_BRACE) & enumerator & ZeroOrMore(OperatorParser(COMMA) & \
     enumerator) & OperatorParser(R_BRACE) & OperatorParser(SEMICOLON)
-
 
 #
 # function declaration
@@ -651,6 +652,7 @@ call_expression = \
     OperatorParser(R_PAR)
 
 arg = call_expression | value | string_value
+
 arglist += \
     arg & ZeroOrMore(OperatorParser(COMMA) & arg)
 
@@ -911,5 +913,32 @@ group = result.get_sub_group(index)
 while group:
     if group.is_instance(function_declaration):
         group.pretty_print()
-    group = result.get_sub_group(index)
     index = index + 1
+    group = result.get_sub_group(index)
+
+def perform_call_search(group):
+    index = 1
+    sub_group = group.get_sub_group(index)
+    while sub_group:
+        instances = sub_group.get_instances()
+        # statement -> basic_statement -> call_expression
+        if sub_group.is_instance(statement):
+            sub_sub_group = sub_group.get_sub_group(1)
+            if sub_sub_group.is_instance(basic_statement):
+                sub_sub_sub_group = sub_group.get_sub_group(1)
+                if sub_sub_sub_group.is_instance(call_expression):
+                    sub_sub_sub_group.pretty_print()
+        index = index + 1
+        sub_group = group.get_sub_group(index)
+
+# print all top-level function calls within each function
+print("\n--------------function calls--------------")
+index = 1
+group = result.get_sub_group(index)
+while group:
+    if group.is_instance(function_definition):
+        print("found function definition, top-level function calls within " \
+              "its body:")
+        perform_call_search(group.get_sub_group(4))
+    index = index + 1
+    group = result.get_sub_group(index)
