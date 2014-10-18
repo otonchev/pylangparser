@@ -939,6 +939,11 @@ while group:
     if group.is_instance(function_definition):
         print("found function definition, top-level function calls within " \
               "its body:")
-        perform_call_search(group.get_sub_group(4))
+        sub_index = 1
+        sub_group = group.get_sub_group(sub_index)
+        while sub_group:
+            perform_call_search(sub_group)
+            sub_index = sub_index + 1
+            sub_group = group.get_sub_group(sub_index)
     index = index + 1
     group = result.get_sub_group(index)
