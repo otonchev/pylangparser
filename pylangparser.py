@@ -367,7 +367,7 @@ class ParserResult:
     TokenParser's use this class to accumulate result from parsing the
     token list returned by the Lexer.
     """
-    def __init__(self, token, pos, instance):
+    def __init__(self, token, pos, instance, unpack=False):
         # __token:          is either a string, a ParserResult, or a tuple of
         #     ParserResult's
         # __position:       is the position of the next token in the lex list
@@ -377,9 +377,12 @@ class ParserResult:
         #     For complex tokens such as ParserResult or touple of
         #     ParserResult'a it is a list of all Parser's which were
         #     successfully applied.
+        # __unpack:         whether to unpack this result before grouping it
+        #     with other ParserResult's or before analysing it
         self.__token = token
         self.__position = pos
         self.__token_instances = [instance]
+        self.__unpack = unpack
 
     def __repr__(self):
         if not self.is_basic_token():
@@ -407,6 +410,13 @@ class ParserResult:
                 raise TypeError("value must be str")
             return '(%s, instance: %s)' % (self.__token, \
                 self.__token_instances[0])
+
+    def unpack(self):
+        """
+        whether to unpack this result before grouping it with other
+        ParserResult's or before abalysing it
+        """
+        return self.__unpack
 
     def is_basic_token(self):
         """
@@ -690,8 +700,14 @@ class CombineManyParsers(TokenParser):
             pos = res.get_position()
             if res.is_empty() or res.is_ignore():
                 continue
-            res.add_instance(self)
-            result = result + (res,)
+            if res.unpack():
+                res_token = res.get_token()
+                if isinstance(res_token, tuple):
+                    result = result + res_token
+                else:
+                    result = result + (res_token,)
+            else:
+                result = result + (res,)
         return ParserResult(result, pos, self)
 
 class SelectParser(TokenParser):
@@ -812,7 +828,7 @@ class Optional(TokenParser):
         if result:
             result.add_instance(self)
             return result
-        return ParserResult(None, pos, self)
+        return ParserResult(None, pos, self, True)
 
 class ZeroOrMore(TokenParser):
     """
@@ -846,7 +862,7 @@ class ZeroOrMore(TokenParser):
                     results = (results, result)
         if results and isinstance(results, ParserResult):
             return results
-        return ParserResult(results, pos, self)
+        return ParserResult(results, pos, self, True)
 
 class Repeat(TokenParser):
     """
@@ -882,7 +898,7 @@ class Repeat(TokenParser):
             return None
         if isinstance(results, ParserResult):
             return results
-        return ParserResult(results, pos, self)
+        return ParserResult(results, pos, self, True)
 
 class AllTokensConsumed(TokenParser):
     """

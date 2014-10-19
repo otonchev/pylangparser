@@ -193,7 +193,7 @@ func2(const int p, char t) {
   }
 
   if (!(a>b) && !c)
-    f();
+    f(12, a);
 
   {
     {
@@ -224,6 +224,7 @@ func2(const int p, char t) {
   for (i = 5; i < 5; i++) {
     p = 1;
     if (i == 4) {
+      abort (1);
       break;
     }
   }
@@ -268,6 +269,8 @@ gst_flow_get_name (GstFlowReturn ret)
   gint i;
 
   ret = CLAMP (ret, GST_FLOW_CUSTOM_ERROR, GST_FLOW_CUSTOM_SUCCESS);
+
+  ret = f(a, b);
 
   for (i = 0; i < G_N_ELEMENTS (flow_quarks); i++) {
     p = flow_quarks[i].ret;
@@ -920,14 +923,12 @@ def perform_call_search(group):
     index = 1
     sub_group = group.get_sub_group(index)
     while sub_group:
-        instances = sub_group.get_instances()
-        # statement -> basic_statement -> call_expression
-        if sub_group.is_instance(statement):
-            sub_sub_group = sub_group.get_sub_group(1)
-            if sub_sub_group.is_instance(basic_statement):
-                sub_sub_sub_group = sub_group.get_sub_group(1)
-                if sub_sub_sub_group.is_instance(call_expression):
-                    sub_sub_sub_group.pretty_print()
+
+        perform_call_search(sub_group)
+
+        if sub_group.is_instance(call_expression):
+            sub_group.pretty_print()
+
         index = index + 1
         sub_group = group.get_sub_group(index)
 
@@ -937,13 +938,8 @@ index = 1
 group = result.get_sub_group(index)
 while group:
     if group.is_instance(function_definition):
-        print("found function definition, top-level function calls within " \
+        print("found function definition, all function calls within " \
               "its body:")
-        sub_index = 1
-        sub_group = group.get_sub_group(sub_index)
-        while sub_group:
-            perform_call_search(sub_group)
-            sub_index = sub_index + 1
-            sub_group = group.get_sub_group(sub_index)
+        perform_call_search(group)
     index = index + 1
     group = result.get_sub_group(index)
