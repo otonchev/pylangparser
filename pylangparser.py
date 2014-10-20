@@ -373,10 +373,14 @@ class ParserResult:
         # __position:       is the position of the next token in the lex list
         # __token_instances: is a list of Parser instances that generated the
         #     ParserResult. For basic tokens where __token is a string the list
-        #     will contain just one entry (Keyword, Symbols, Operator, etc).
+        #     will contain two entries. The first element will be one of:
+        #     Keyword, Symbols, Operator, etc. The second entry will be the
+        #     parser which was applied: KeywordParser, SymbolsParser,
+        #     OperatorParser, etc.
         #     For complex tokens such as ParserResult or touple of
-        #     ParserResult'a it is a list of all Parser's which were
-        #     successfully applied.
+        #     ParserResult's the first two elements in the list are still as
+        #     above followed by all other Parser's which were successfully
+        #     applied.
         # __unpack:         whether to unpack this result before grouping it
         #     with other ParserResult's or before analysing it
         self.__token = token
@@ -507,13 +511,38 @@ class ParserResult:
 
     def is_instance(self, aimed):
         """
-        check if a TokenParser was successfully applied when generating the
-        ParserResult. Check self.add_instance() for more details.
+        check if a particular TokenParser was successfully applied when generating
+        the ParserResult. Check self.add_instance() for more details.
         This method is useful when iterating the AST to quickly check the type
         of a sub-tree.
+
+        enum_specifier = KeywordParser(ENUM) & SymbolsParser(IDENTIFIER)
+        result = enum_specifier(source, 0)
+
+        then
+        result.is_instance(enum_specifier) will be True
         """
         for instance in self.__token_instances:
             if aimed == instance:
+                return True
+        return False
+
+    def is_real_instance(self, aimed):
+        """
+        check if a TokenParser of a given type was successfully applied when
+        generating the ParserResult. Check self.add_instance() for more details.
+        This method is useful when iterating the AST to quickly check the type
+        of a sub-tree.
+
+        enum_specifier = KeywordParser(ENUM) & SymbolsParser(IDENTIFIER)
+        result = enum_specifier(source, 0)
+
+        then
+        one of result.is_real_instance(KeywordParser) or
+        result.is_real_instance(SymbolsParser) will be True
+        """
+        for instance in self.__token_instances:
+            if isinstance(instance, aimed):
                 return True
         return False
 
@@ -757,7 +786,9 @@ class KeywordParser(TokenParser):
         (token, instance) = tokens[pos].get_data()
         if instance == self.__token:
             tokens[pos].touch()
-            return ParserResult(token, pos + 1, instance)
+            result = ParserResult(token, pos + 1, instance)
+            result.add_instance(self)
+            return result
         return None
 
 class OperatorParser(TokenParser):
@@ -781,7 +812,9 @@ class OperatorParser(TokenParser):
         (token, instance) = tokens[pos].get_data()
         if instance == self.__token:
             tokens[pos].touch()
-            return ParserResult(token, pos + 1, instance)
+            result = ParserResult(token, pos + 1, instance)
+            result.add_instance(self)
+            return result
         return None
 
 class SymbolsParser(TokenParser):
@@ -805,7 +838,9 @@ class SymbolsParser(TokenParser):
         (token, instance) = tokens[pos].get_data()
         if instance == self.__instance:
             tokens[pos].touch()
-            return ParserResult(token, pos + 1, instance)
+            result = ParserResult(token, pos + 1, instance)
+            result.add_instance(self)
+            return result
         return None
 
 class Optional(TokenParser):
