@@ -445,7 +445,7 @@ class ParserResult:
 
     def pretty_print(self, *args, **kwargs):
         """
-        use Data pretty printer to print AST in human readable format
+        use Data pretty printer to print AST's in human readable format
 
         Example output:
 
@@ -484,22 +484,23 @@ class ParserResult:
         """
         self.__token = token
 
-    def add_instance(self, instance):
+    def add_parser_instance(self, instance):
         """
         adds a new TokenParser instance to the ParserResult. This method is
         used when building AST's and is called for each and every TokenParser
-        that was applied when the ParserResult was generated.
+        that was successfully applied when the ParserResult was generated.
 
         Example:
             parser = KeywordParser(FOR) | KeywordParser(WHILE)
-        after applying this parser the resulting ParserResult will have just
-        one insance, it will be one of 'FOR' and 'WHILE'
+        after applying this parser the resulting ParserResult will have two
+        insances, one of 'FOR' and 'WHILE' and another one for 'parser'
 
             parser = KeywordParser(FOR) | KeywordParser(WHILE)
             parser1 = Repeat(parser)
-        after applying this parser the resulting ParserResult will contain two
-        instances, the first one will be one of 'FOR' and 'WHILE' and the second one
-        will be 'Repeat'
+        after applying this parser the resulting top-level ParserResult will
+        contain two instances, the first one will be 'Repeat' and the second
+        one 'parser1'. The inner ParserResult will have two instances: one of
+        'FOR' and 'WHILE' and another one for 'parser'
 
         Instances are useful when iterating the AST to quickly check the type
         of a sub-tree.
@@ -509,10 +510,10 @@ class ParserResult:
             raise TypeError("argument must be a TokenParser")
         self.__token_instances.append(instance)
 
-    def is_instance(self, aimed):
+    def check_parser(self, aimed_parser):
         """
-        check if a particular TokenParser was successfully applied when generating
-        the ParserResult. Check self.add_instance() for more details.
+        check if particular TokenParser was successfully applied when generating
+        the ParserResult. Check self.add_parser_instance() for more details.
         This method is useful when iterating the AST to quickly check the type
         of a sub-tree.
 
@@ -520,17 +521,18 @@ class ParserResult:
         result = enum_specifier(source, 0)
 
         then
-        result.is_instance(enum_specifier) will be True
+        result.check_parser(enum_specifier) will be True
         """
         for instance in self.__token_instances:
-            if aimed == instance:
+            if aimed_parser == instance:
                 return True
         return False
 
-    def is_real_instance(self, aimed):
+    def check_parser_instance(self, aimed_parser_class):
         """
         check if a TokenParser of a given type was successfully applied when
-        generating the ParserResult. Check self.add_instance() for more details.
+        generating the ParserResult. Check self.add_parser_instance() for more
+        details.
         This method is useful when iterating the AST to quickly check the type
         of a sub-tree.
 
@@ -538,11 +540,11 @@ class ParserResult:
         result = enum_specifier(source, 0)
 
         then
-        one of result.is_real_instance(KeywordParser) or
-        result.is_real_instance(SymbolsParser) will be True
+        one of result.check_parser_instance(KeywordParser) or
+        result.check_parser_instance(SymbolsParser) will be True
         """
         for instance in self.__token_instances:
-            if isinstance(instance, aimed):
+            if isinstance(instance, aimed_parser_class):
                 return True
         return False
 
@@ -682,13 +684,13 @@ class CombineTwoParsers(TokenParser):
             second_res = self.second(tokens, first_res.get_position())
             if second_res:
                 if first_res.is_empty() or first_res.is_ignore():
-                    first_res.add_instance(self)
+                    first_res.add_parser_instance(self)
                     return second_res
                 if second_res.is_empty() or second_res.is_ignore():
                     # we are ignoring second result, update next tokens
                     # position in first result
                     first_res.set_position(second_res.get_position())
-                    first_res.add_instance(self)
+                    first_res.add_parser_instance(self)
                     return first_res
                 return ParserResult((first_res, second_res), \
                     second_res.get_position(), self)
@@ -757,11 +759,11 @@ class SelectParser(TokenParser):
     def __call__(self, tokens, pos):
         res = self.first(tokens, pos)
         if res:
-            res.add_instance(self)
+            res.add_parser_instance(self)
             return res
         res = self.second(tokens, pos)
         if res:
-            res.add_instance(self)
+            res.add_parser_instance(self)
             return res
         return None
 
@@ -787,7 +789,7 @@ class KeywordParser(TokenParser):
         if instance == self.__token:
             tokens[pos].touch()
             result = ParserResult(token, pos + 1, instance)
-            result.add_instance(self)
+            result.add_parser_instance(self)
             return result
         return None
 
@@ -813,7 +815,7 @@ class OperatorParser(TokenParser):
         if instance == self.__token:
             tokens[pos].touch()
             result = ParserResult(token, pos + 1, instance)
-            result.add_instance(self)
+            result.add_parser_instance(self)
             return result
         return None
 
@@ -839,7 +841,7 @@ class SymbolsParser(TokenParser):
         if instance == self.__instance:
             tokens[pos].touch()
             result = ParserResult(token, pos + 1, instance)
-            result.add_instance(self)
+            result.add_parser_instance(self)
             return result
         return None
 
@@ -861,7 +863,7 @@ class Optional(TokenParser):
             return None
         result = self.__parser(tokens, pos)
         if result:
-            result.add_instance(self)
+            result.add_parser_instance(self)
             return result
         return ParserResult(None, pos, self, True)
 
@@ -886,7 +888,7 @@ class ZeroOrMore(TokenParser):
             result = self.__parser(tokens, pos)
             if not result:
                 break
-            result.add_instance(self)
+            result.add_parser_instance(self)
             pos = result.get_position()
             if not results:
                 results = result
@@ -920,7 +922,7 @@ class Repeat(TokenParser):
             result = self.__parser(tokens, pos)
             if not result:
                 break
-            result.add_instance(self)
+            result.add_parser_instance(self)
             pos = result.get_position()
             if not results:
                 results = result
@@ -956,7 +958,7 @@ class AllTokensConsumed(TokenParser):
             result = self.__parser(tokens, pos)
             if not result:
                 return None
-            result.add_instance(self)
+            result.add_parser_instance(self)
             pos = result.get_position()
             if pos != len(tokens):
                 return None
@@ -969,7 +971,7 @@ class AllTokensConsumed(TokenParser):
     def __call__(self, tokens, pos):
         result = self.__parser(tokens, pos)
         if result:
-            result.add_instance(self)
+            result.add_parser_instance(self)
         return result
 
 class RecursiveParser(TokenParser):
@@ -1009,7 +1011,7 @@ class RecursiveParser(TokenParser):
                 "another_parser")
         result = self.__parser(tokens, pos)
         if result:
-            result.add_instance(self)
+            result.add_parser_instance(self)
         return result
 
 class CustomizeResult(TokenParser):
@@ -1051,7 +1053,7 @@ class CustomizeResult(TokenParser):
             return result
         result = self.__func(result)
         if result:
-            result.add_instance(self)
+            result.add_parser_instance(self)
         return result
 
 class CheckErrors(TokenParser):
