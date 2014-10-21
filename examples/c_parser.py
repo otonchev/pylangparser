@@ -916,18 +916,12 @@ subgroup.pretty_print()
 # print all function declarations
 #
 print("\n--------------function declarations--------------")
-index = 1
-group = result.get_sub_group(index)
-while group:
+for group in result:
     if group.check_parser(function_declaration):
         group.pretty_print()
-    index = index + 1
-    group = result.get_sub_group(index)
 
 def perform_call_search(group):
-    index = 1
-    sub_group = group.get_sub_group(index)
-    while sub_group:
+    for sub_group in group:
 
         # perform deep search
         perform_call_search(sub_group)
@@ -946,19 +940,19 @@ def perform_call_search(group):
             func_name_token = func_name.get_token()
             print("func name: %s" % func_name_token)
 
-        index = index + 1
-        sub_group = group.get_sub_group(index)
+            func_args = sub_group.get_sub_group(2)
+
+            if not func_args.check_parser(arglist):
+                raise TypeError("internal error, func_args not arglist")
+            for arg in func_args:
+                print("arg: %s" % arg)
 
 #
 # print all function calls within each function
 #
 print("\n--------------function calls--------------")
-index = 1
-group = result.get_sub_group(index)
-while group:
+for group in result:
     if group.check_parser(function_definition):
-        print("found function definition, all function calls within " \
+        print("\nfound function definition, all function calls within " \
               "its body:")
         perform_call_search(group)
-    index = index + 1
-    group = result.get_sub_group(index)
