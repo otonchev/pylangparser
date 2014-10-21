@@ -415,6 +415,28 @@ class ParserResult:
             return '(%s, instance: %s)' % (self.__token, \
                 self.__token_instances[0])
 
+    def __getitem__(self, index):
+        """
+        index ParserResult's for convenience. check self.get_sub_group(index)
+        Note that indexing starts from 1
+        """
+        return self.get_sub_group(index)
+
+    def __iter__(self):
+        """
+        make ParserResult's iterable so that it is possible to do:
+
+        result = parser(tokens, 0)
+        for sub_group in result:
+            sub_group.pretty_print()
+        """
+        index = 1
+        sub_group = self.get_sub_group(index)
+        while sub_group:
+            yield sub_group
+            index += 1
+            sub_group = self.get_sub_group(index)
+
     def unpack(self):
         """
         whether to unpack this result before grouping it with other
@@ -579,6 +601,17 @@ class ParserResult:
         returns a sub-ParserResult of type ParserResult, if index is not found,
         None value is returned
         sub-groups are indexed from 1, sub-group 0 is the whole AST
+
+        Consider using iterators or indexes too:
+
+        result = parser(tokens, 0)
+
+        for sub_group in result:
+            sub_group.pretty_print()
+
+        Or:
+
+        sub_group = result[1]
         """
         if index == 0:
             return self
