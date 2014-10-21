@@ -1,9 +1,12 @@
 # Example usage of the Parser. The test parses a C program and
-# validates the grammar. The grammar used in the example is
-# based on the simplified C grammar from the SableCC project.
-# See c_parser_grammar.txt for more details. Also note that this
-# file is unmodified and does not contain the extensions made
-# to the grammar for the purpose of this test.
+# validates the grammar. It also prints all function declarations
+# and function calls.
+#
+# The grammar used in the example is based on the simplified C
+# grammar from the SableCC project. See c_parser_grammar.txt for
+# more details. Also note that this file is unmodified and does
+# not contain the extensions made to the grammar for the purpose
+# of this test.
 #
 # Copyright, 2014, Ognyan Tonchev (otonchev at gmail com)
 #
@@ -909,12 +912,14 @@ print("\n------subgroup 7.3------")
 subgroup = group.get_sub_group(3)
 subgroup.pretty_print()
 
+#
 # print all function declarations
+#
 print("\n--------------function declarations--------------")
 index = 1
 group = result.get_sub_group(index)
 while group:
-    if group.is_instance(function_declaration):
+    if group.check_parser(function_declaration):
         group.pretty_print()
     index = index + 1
     group = result.get_sub_group(index)
@@ -924,20 +929,34 @@ def perform_call_search(group):
     sub_group = group.get_sub_group(index)
     while sub_group:
 
+        # perform deep search
         perform_call_search(sub_group)
 
-        if sub_group.is_instance(call_expression):
+        if sub_group.check_parser(call_expression):
+            # current sub_group is a call expression, print it
             sub_group.pretty_print()
+
+            func_name = sub_group.get_sub_group(1)
+
+            # func name must fulfill SymbolsParser && IDENTIFIER
+            if not (func_name.check_parser_instance(SymbolsParser) and \
+                func_name.check_parser(IDENTIFIER)):
+                raise TypeError("internal error, func_name not IDENTIFIER")
+
+            func_name_token = func_name.get_token()
+            print("func name: %s" % func_name_token)
 
         index = index + 1
         sub_group = group.get_sub_group(index)
 
-# print all top-level function calls within each function
+#
+# print all function calls within each function
+#
 print("\n--------------function calls--------------")
 index = 1
 group = result.get_sub_group(index)
 while group:
-    if group.is_instance(function_definition):
+    if group.check_parser(function_definition):
         print("found function definition, all function calls within " \
               "its body:")
         perform_call_search(group)
