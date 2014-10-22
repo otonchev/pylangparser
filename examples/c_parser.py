@@ -99,12 +99,12 @@ BAR_EQUAL = Operator(r'|=')
 IDENTIFIER = Symbols(r'[A-Za-z_]+[A-Za-z0-9_]*')
 STRING_IDENTIFIER = Symbols(r'\".*\"')
 INT_CONSTANT = Symbols(r'(0x[0-9A-Fa-f]*|\d+)')
-FLOAT_CONSTANT = Symbols(r'[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?')
+FLOAT_CONSTANT = Symbols(r'(\d+\.(\d*)?|\.\d+)([eE][+-]?\d+)?')
 CHAR_CONSTANT = Symbols(r'\'.\'')
 
 CPP_STYLE_COMMENT = Ignore(r'\/\/[^\n]*')
 MACROS = Ignore(r'\#.*\n')
-IGNORE_CHARS = Ignore(r'[ \t\v\f]+')
+IGNORE_CHARS = Ignore(r'[ \t\v\f\n]+')
 CONST = Ignore(r'const')
 
 # group tokens into sub-groups
@@ -125,15 +125,17 @@ KEYWORDS = AUTO & BREAK & CASE & ENUM & CONTINUE & DEFAULT & DO & ELSE & \
     SWITCH & UNION & VOLATILE & WHILE & ENUM & TYPEDEF & VOID & CHAR & SHORT & \
     INT & LONG & FLOAT & DOUBLE & SIGNED & UNSIGNED
 
-OPERATORS = DOT & COMMA & COLON & SEMICOLON & L_PAR & R_PAR & L_BRACKET & \
-    R_BRACKET & L_BRACE & R_BRACE & STAR & DIV & MOD & AMPERSAND & PLUS & \
-    MINUS & CARET & TILDE & EXCL_MARK & QUEST_MARK & BAR & ELLIPSIS & EQUAL & \
-    EQ & NEQ & LT & LTEQ & GT & GTEQ & ARROW & PLUS_PLUS & MINUS_MINUS & \
-    SHL & SHR & AMPERSAND_AMPERSAND & BAR_BAR & STAR_EQUAL & DIV_EQUAL & \
-    MOD_EQUAL & PLUS_EQUAL & MINUS_EQUAL & SHL_EQUAL & SHR_EQUAL & \
-    AMPERSAND_EQUAL & CARET_EQUAL & BAR_EQUAL
+# order is important as first operator that matches will be considered
+# so it is important that '<=' is taken before '<'
+OPERATORS = SHL & SHR & AMPERSAND_AMPERSAND & BAR_BAR & STAR_EQUAL & \
+    DIV_EQUAL & MOD_EQUAL & PLUS_EQUAL & MINUS_EQUAL & SHL_EQUAL & SHR_EQUAL & \
+    AMPERSAND_EQUAL & CARET_EQUAL & BAR_EQUAL & ARROW & DOT & COMMA & COLON & \
+    SEMICOLON & L_PAR & R_PAR & L_BRACKET & R_BRACKET & L_BRACE & R_BRACE & \
+    STAR & DIV & MOD & AMPERSAND & PLUS_PLUS & MINUS_MINUS & CARET & TILDE & \
+    NEQ & EXCL_MARK & QUEST_MARK & BAR & ELLIPSIS & EQ & EQUAL & LTEQ & LT & \
+    GTEQ & GT & PLUS & MINUS
 
-IDENTIFIERS = IDENTIFIER & STRING_IDENTIFIER & INT_CONSTANT & FLOAT_CONSTANT & \
+IDENTIFIERS = IDENTIFIER & STRING_IDENTIFIER & FLOAT_CONSTANT & INT_CONSTANT & \
     CHAR_CONSTANT
 
 # join all token sub-groups
@@ -181,7 +183,7 @@ func2(const int p, char t) {
   char *f;
   unsigned short j;
 
-  q = 5.5;
+  q = 5;
   func(12, func1(42), 42);
 
   printf ("hello world: %" GST_TIME_FORMAT, time);
@@ -261,7 +263,7 @@ func2(const int p, char t) {
 
 error: {
   if (p == 5)
-    p = 5;
+    p = 5.5;
   return 1;
 }
 }
