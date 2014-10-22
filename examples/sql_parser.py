@@ -69,10 +69,12 @@ LE = Operator(r'<')
 LQ = Operator(r'<=')
 DIFFERENT = Operator(r'<>')
 
-OPERATORS = SEMICOLON & COMMA & STAR & L_PAR & R_PAR & PLUS & MINUS & DIV & \
-    ASSIGNMENT & GT & GE & LE & LQ & DIFFERENT
+# order is important as first operator that matches will be considered
+# so it is important that '<=' is taken before '<'
+OPERATORS = LQ & DIFFERENT & SEMICOLON & COMMA & STAR & L_PAR & R_PAR & PLUS & \
+    MINUS & DIV & ASSIGNMENT & GT & GE & LE
 
-IGNORE_CHARS = Ignore(r'[ \t\v\f]+')
+IGNORE_CHARS = Ignore(r'[ \t\v\f\n]+')
 
 TOKENS = KEYWORDS & SYMBOLS & OPERATORS & IGNORE_CHARS
 
