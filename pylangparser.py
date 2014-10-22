@@ -957,6 +957,22 @@ class Repeat(TokenParser):
             return results
         return ParserResult(results, pos, self, True)
 
+class IgnoreResult(TokenParser):
+    """
+    This parser's result will be ignored in the final AST if combined with
+    other parser's results
+    """
+    def __init__(self, parser):
+        TokenParser.__init__(self)
+        self.__parser = parser
+
+    def __call__(self, tokens, pos):
+        result = self.__parser(tokens, pos)
+        if not result:
+            return None
+        result.set_token(None)
+        return result
+
 class AllTokensConsumed(TokenParser):
     """
     This parser makes sure that all input tokens are consumed.
