@@ -74,8 +74,16 @@ class TokenIterator():
 class TokenMatcher(TokenIterator):
     """ Interface for extracting tokens from a text """
 
-    def match_token(self, input_string):
-        """ Checks whether input_string is a valid token """
+    def __alfa(self, w):
+        """ alphanum + underscore """
+        return w.replace('_', 'a').isalpha()
+
+    def find_token(self, input_string):
+        """
+        Checks whether input_string starts with a valid token and returns it
+        Returns a tuple of the kind (<Token>, token_len) or (None, -1) if no
+        token could be matched
+        """
         for token in self._get_tokens():
 
             flags = 0
@@ -86,11 +94,14 @@ class TokenMatcher(TokenIterator):
             if token.is_ignorecase():
                 flags = re.IGNORECASE
 
-            if re.match('^' + pattern + '$', input_string, flags):
-                if not input_string.endswith('\n') or \
-                    token.get_pattern().endswith('\\n'):
-                    return token
-        return None
+            match = re.match('^' + pattern, input_string, flags)
+            if match:
+                if (match.end(0) >= len(input_string)) or \
+                    not self.__alfa(input_string[0]) or \
+                    not self.__alfa(input_string[match.end(0)]):
+                    return (token, match.end(0))
+        return (None, -1)
+
 
 class TokenSetter(TokenIterator):
     """ Interface for setting a property on a group of tokens """
@@ -272,7 +283,7 @@ class Lexer:
         prev_start = start
         return (row, column)
 
-    def parseTokens(self, input_text):
+    def parseTokens(self, input_text, ignoreCStyleComments=True):
         """
         Returns a list of tokens present in the source. The list is in the
         format:
@@ -280,62 +291,38 @@ class Lexer:
         Raises ParseException
         """
         start = 0
-        token_len = 1
-        match = None
         tokens = []
 
         row = 0
         column = 0
         prev_start = 0
 
-        while start + token_len <= len(input_text):
+        while start < len(input_text):
 
-            # ignore C style comments
-            m = re.match('^' + self.C_STYLE_COMMENT, input_text[start:], \
-                re.DOTALL)
-            if m:
-                start = start + m.end(0)
-                token_len = 1
+            if ignoreCStyleComments:
+                # ignore C style comments
+                m = re.match('^' + self.C_STYLE_COMMENT, input_text[start:], \
+                    re.DOTALL)
+                if m:
+                    start = start + m.end(0)
+                    token_len = 1
 
-            # check for tokens
-            result = \
-                self.__token_matcher.match_token(input_text[start:start + token_len])
-            if result:
-                # remember that we got a match
-                match = result
-            elif match:
-                # previous token matched, current didn't, take previous
+            (match, length) = self.__token_matcher.find_token(input_text[start:])
+            if match and length != -1:
                 if not match.is_ignore():
                     # calculate row and column for the new token
                     (row, column) = self.__calculate_new_pos(input_text, start, \
                         prev_start, row, column)
                     prev_start = start
-                    data = self.TokenData(input_text[start:start + token_len - 1], match, \
+                    data = self.TokenData(input_text[start:start + length], match, \
                         row, column)
                     # and append it to the result
                     tokens.append(data)
-                start = start + token_len - 1
-                token_len = 0
-                match = None
+                start = start + length
             else:
-                # no match at all
-                match = None
-
-            token_len = token_len + 1
-
-            # ignore trailing newline
-            while input_text[start:start + token_len].startswith('\n'):
-                start = start + 1
-                token_len = 1
-                match = Ignore(r'\n')
-
-        if match:
-            if not match.is_ignore():
-                tokens.append((input_text[start:start + token_len - 1], match))
-        else:
-            (row, column) = self.__calculate_new_pos(input_text, start, \
-                        prev_start, row, column)
-            raise ParseException(row, column, "Error parsing token")
+                (row, column) = self.__calculate_new_pos(input_text, start, \
+                            prev_start, row, column)
+                raise ParseException(row, column, "Error parsing token")
 
         return tokens
 
@@ -1136,21 +1123,21 @@ class ParseTests(unittest.TestCase):
 	self.LE = Operator(r'<=')
 
 	self.IDENTIFIER = Symbols(r'[A-Za-z_]+[A-Za-z0-9_]*')
-	self.INT_IDENTIFIER = Symbols(r'[0-9]*')
+	self.INT_IDENTIFIER = Symbols(r'[0-9]+')
 	self.STRING_IDENTIFIER = Symbols(r'\".*\"')
 
 	self.CPP_STYLE_COMMENT = Ignore(r'//.*\n')
 	self.MACROS = Ignore(r'\#.*\n')
-	self.IGNORE_CHARS = Ignore(r'[ \t\v\f]+')
+	self.IGNORE_CHARS = Ignore(r'[ \t\v\f\n]+')
 
         # group tokens into sub-groups
         self.IGNORES = self.CPP_STYLE_COMMENT & self.MACROS & self.IGNORE_CHARS
 
         self.KEYWORDS = self.FOR & self.RETURN & self.IF
 
-        self.OPERATORS = self.COMMA & self.SEMICOLON & self.ASSIGNMENT & \
-            self.LBRACKET & self.RBRACKET & self.LBRACE & self.RBRACE & \
-            self.AND & self.POINTER & self.PP & self.LE
+        self.OPERATORS = self.PP & self.LE & self.COMMA & self.SEMICOLON & \
+            self.ASSIGNMENT & self.LBRACKET & self.RBRACKET & self.LBRACE & \
+            self.RBRACE & self.AND & self.POINTER
 
         self.IDENTIFIERS = self.IDENTIFIER & self.INT_IDENTIFIER & \
             self.STRING_IDENTIFIER
