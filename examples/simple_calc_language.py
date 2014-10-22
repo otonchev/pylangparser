@@ -25,15 +25,17 @@ GT = Operator(r'>')
 LPAR = Operator(r'(')
 RPAR = Operator(r')')
 
-OPERATORS = PLUS & MINUS & ASSIGNMENT & EQ & LE & GT & SEMICOLON & LPAR & RPAR
+# order is important as first operator that matches will be considered
+# so it is important that '<=' is taken before '<'
+OPERATORS = EQ & PLUS & MINUS & ASSIGNMENT & LE & GT & SEMICOLON & LPAR & RPAR
 
-IGNORE_CHARS = Ignore(r'[ \t\v\f]+')
+IGNORE_CHARS = Ignore(r'[ \t\v\f\n]+')
 
 COMMENTS = Ignore(r'\#.*\n')
 
 IDENTIFIER = Symbols(r'[A-Za-z_]+[A-Za-z0-9_]*')
 
-CONSTANT = Symbols(r'[0-9]*')
+CONSTANT = Symbols(r'[0-9]+')
 
 TOKENS = KEYWORDS & OPERATORS & CONSTANT & IDENTIFIER & COMMENTS & IGNORE_CHARS
 
@@ -58,7 +60,7 @@ arthm_expression = \
     SymbolsParser(IDENTIFIER) & \
     OperatorParser(ASSIGNMENT) & \
     operand & \
-    Optional(arthm_operator &operand) & \
+    Optional(arthm_operator & operand) & \
     OperatorParser(SEMICOLON)
 
 condition = \
