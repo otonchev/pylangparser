@@ -57,12 +57,12 @@ LE = Operator(r'<=')
 DIV = Operator('/')
 
 IDENTIFIER = Symbols(r'[A-Za-z_]+[A-Za-z0-9_]*')
-INT_IDENTIFIER = Symbols(r'[0-9]*')
+INT_IDENTIFIER = Symbols(r'[0-9]+')
 STRING_IDENTIFIER = Symbols(r'\".*\"')
 
 CPP_STYLE_COMMENT = Ignore(r'//.*\n')
 MACROS = Ignore(r'#.*\n')
-IGNORE_CHARS = Ignore(r'[ \t\v\f]+')
+IGNORE_CHARS = Ignore(r'[ \t\v\f\n]+')
 
 # group tokens into sub-groups
 IGNORES = CPP_STYLE_COMMENT & MACROS & IGNORE_CHARS
@@ -72,8 +72,10 @@ KEYWORDS = AUTO & BREAK & CASE & ENUM & CONST & CONTINUE & DEFAULT & DO & ELSE &
     SWITCH & UNION & VOLATILE & WHILE & ENUM & TYPEDEF & VOID & CHAR & SHORT & \
     INT & LONG & FLOAT & DOUBLE & SIGNED & UNSIGNED
 
-OPERATORS = COMMA & COLON & ASSIGNMENT & LBRACKET & RBRACKET & LBRACE & RBRACE & \
-    AND & POINTER & PP & LE & DIV
+# order is important as first operator that matches will be considered
+# so it is important that '<=' is taken before '<'
+OPERATORS = PP & LE & COMMA & COLON & ASSIGNMENT & LBRACKET & RBRACKET & \
+    LBRACE & RBRACE & AND & POINTER & DIV
 
 IDENTIFIERS = IDENTIFIER & INT_IDENTIFIER & STRING_IDENTIFIER
 
@@ -84,6 +86,7 @@ TOKENS = KEYWORDS & OPERATORS & IDENTIFIERS & IGNORES
 # our source code
 source = r"""
 
+/* example C program */
 long factorial(int);
  
 int main()
