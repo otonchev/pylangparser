@@ -79,13 +79,12 @@ def update_arthm_expression(result):
 arthm_expression = \
     CustomizeResult (SymbolsParser(IDENTIFIER) & \
     OperatorParser(ASSIGNMENT) & \
-    operand & \
-    Optional(arthm_operator & operand) & \
+    (operand << Optional(arthm_operator << operand)) & \
     OperatorParser(SEMICOLON), update_arthm_expression)
 
 condition = \
-    operand & \
-    comp_operator & \
+    operand << \
+    comp_operator << \
     operand
 
 statement = RecursiveParser()
