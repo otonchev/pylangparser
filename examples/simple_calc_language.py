@@ -59,13 +59,12 @@ operand = \
 arthm_expression = \
     SymbolsParser(IDENTIFIER) & \
     OperatorParser(ASSIGNMENT) & \
-    operand & \
-    Optional(arthm_operator & operand) & \
+    (operand << Optional(arthm_operator << operand)) & \
     OperatorParser(SEMICOLON)
 
 condition = \
-    operand & \
-    comp_operator & \
+    operand << \
+    comp_operator << \
     operand
 
 statement = RecursiveParser()
