@@ -633,12 +633,24 @@ class TokenParser:
         raise NotImplementedError("Method should be implemented")
 
     def __and__(self, right):
+        """
+        Combine parser together. The result will be a combination of all
+        parser results. Check CombineManyParsers for details
+        """
         return CombineManyParsers(self, right)
 
     def __lshift__(self, right):
-        return CombineTwoParsers(self, right)
+        """
+        Combine parser together. The result will be a combination of all
+        parser results. Check MergeManyParsers for details
+        """
+        return MergeManyParsers(self, right)
 
     def __or__(self, right):
+        """
+        the first parser(from left to right) that is successfully applied
+        will be considered. Check SelectParser for details
+        """
         return SelectParser(self, right)
 
     def __iand__(self, right):
@@ -678,43 +690,65 @@ class TokenParser:
     def __repr__(self):
         return self.__name
 
-class CombineTwoParsers(TokenParser):
+class MergeManyParsers(TokenParser):
     """
-    This class is used to combine two token parsers using the LSHIFT(<<)
-    operator. Both parsers should succeed consuming tokens from the
-    token list in order for the whole combination to succeed.
-    If operation is applied over a sequence of parsers, the result will be
-    parsers that are enclosed in each other:
-    (parser1, (parser2, (parser3, ..., (parser4))). The structure of the
-    resulting AST will correspond to this configuration.
+    This class is used to combine many token parsers using the LSHIFT(<<)
+    operator into a single TokenParser. All parsers should succeed
+    consuming tokens from the token list in order for the whole
+    combination to be considered succeessful.
+    The structure of the resulting AST will correspond to this configuration.
 
     It can be applied to just any other parser:
 
         parser = parser1 << parser2 << parser3
+
+    The result will be ParserResult containing tuple of tokens:
+
+        ParserResult(token, token, token)
     """
 
     def __init__(self, first, second):
         TokenParser.__init__(self)
-        self.first = first
-        self.second = second
+        self.parsers = []
+        if isinstance(first, MergeManyParsers):
+            self.parsers = self.parsers + first.parsers
+        else:
+            self.parsers.append(first)
+        if isinstance(second, MergeManyParsers):
+            self.parsers = self.parsers + second.parsers
+        else:
+            self.parsers.append(second)
 
     def __call__(self, tokens, pos):
-        first_res = self.first(tokens, pos)
-        if first_res:
-            second_res = self.second(tokens, first_res.get_position())
-            if second_res:
-                if first_res.is_empty() or first_res.is_ignore():
-                    first_res.add_parser_instance(self)
-                    return second_res
-                if second_res.is_empty() or second_res.is_ignore():
-                    # we are ignoring second result, update next tokens
-                    # position in first result
-                    first_res.set_position(second_res.get_position())
-                    first_res.add_parser_instance(self)
-                    return first_res
-                return ParserResult((first_res, second_res), \
-                    second_res.get_position(), self)
-        return None
+        result = ()
+        for parser in self.parsers:
+            res = parser(tokens, pos)
+            if not res:
+                return None
+
+            pos = res.get_position()
+
+            if res.is_empty() or res.is_ignore():
+                # this token should be ignored
+                continue
+
+            if not res.is_basic_token():
+                res_token = res.get_token()
+                if isinstance(res_token, tuple):
+                    result = result + res_token
+                else:
+                    result = result + (res_token,)
+            else:
+                result = result + (res,)
+
+        if len(result) == 1:
+            # only one result, rest of results were ignored, skip unnecessary
+            # packing
+            (result,) = result
+            result.set_position(pos)
+            return result
+
+        return ParserResult(result, pos, self)
 
 class CombineManyParsers(TokenParser):
     """
@@ -728,6 +762,11 @@ class CombineManyParsers(TokenParser):
     It can be applied to just any other parser:
 
         parser = parser1 & parser2 & parser3
+
+    The result will be ParserResult containing tuple of ParserResult's:
+
+        ParserResult(ParserResult(token), ParserResult(token), \
+            ParserResult(token))
     """
 
     def __init__(self, first, second):
@@ -744,13 +783,17 @@ class CombineManyParsers(TokenParser):
 
     def __call__(self, tokens, pos):
         result = ()
+
         for parser in self.parsers:
             res = parser(tokens, pos)
             if not res:
                 return None
+
             pos = res.get_position()
             if res.is_empty() or res.is_ignore():
+                # this token should be ignored
                 continue
+
             if res.unpack():
                 res_token = res.get_token()
                 if isinstance(res_token, tuple):
@@ -759,6 +802,14 @@ class CombineManyParsers(TokenParser):
                     result = result + (res_token,)
             else:
                 result = result + (res,)
+
+        if len(result) == 1:
+            # only one result, rest of results were ignored, skip unnecessary
+            # packing
+            (result,) = result
+            result.set_position(pos)
+            return result
+
         return ParserResult(result, pos, self)
 
 class SelectParser(TokenParser):
