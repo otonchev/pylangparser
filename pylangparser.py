@@ -736,6 +736,7 @@ class MergeManyParsers(TokenParser):
             # packing
             (result,) = result
             result.set_position(pos)
+            result.add_parser_instance(self)
             return result
 
         return ParserResult(result, pos, self)
@@ -791,6 +792,7 @@ class CombineManyParsers(TokenParser):
             # packing
             (result,) = result
             result.set_position(pos)
+            result.add_parser_instance(self)
             return result
 
         return ParserResult(result, pos, self)
