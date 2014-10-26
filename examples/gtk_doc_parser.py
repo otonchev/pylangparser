@@ -12,10 +12,15 @@ from pylangparser import *
 
 ALLOW_NONE = Keyword(r'\(allow-none\)')
 FLOATING = Keyword(r'\(transfer floating\)')
+FULL = Keyword(r'\(transfer full\)')
+NONE = Keyword(r'\(transfer none\)')
+CONTAINER = Keyword(r'\(transfer container\)')
 NULLABLE = Keyword(r'\(nullable\)')
+OUT = Keyword(r'\(out\)')
 RETURNS = Keyword(r'Returns')
 
-KEYWORDS = ALLOW_NONE & FLOATING & NULLABLE & RETURNS
+KEYWORDS = ALLOW_NONE & FULL & NONE & CONTAINER & FLOATING & NULLABLE & \
+    OUT & RETURNS
 
 COLON = Operator(r':')
 AT = Operator(r'@')
@@ -24,12 +29,13 @@ DOT = Ignore(r'.')
 
 OPERATORS = AT & COLON & COMMA & DOT
 
+VARARGS = Symbols(r'\.\.\.')
 IDENTIFIER = Symbols(r'[A-Za-z_]+[A-Za-z0-9_]*')
 WORD = Symbols(r'[A-Za-z#%\(\)]+')
 COMMENT_START = Symbols(r'/\*\*')
 COMMENT_END = Symbols(r'\*/')
 
-SYMBOLS = IDENTIFIER & WORD
+SYMBOLS = VARARGS & IDENTIFIER & WORD
 COMMENT_SYMBOLS = COMMENT_START & COMMENT_END
 
 COMMENT_LINE = Ignore(r'\*')
@@ -39,7 +45,7 @@ IGNORES = IGNORE_CHARS & COMMENT_LINE
 
 # order is important, first token that is matches will be considered
 # that is why it is important to put '*/' before '*', for example
-TOKENS = COMMENT_SYMBOLS & KEYWORDS & OPERATORS & SYMBOLS & IGNORES
+TOKENS = COMMENT_SYMBOLS & KEYWORDS & SYMBOLS & OPERATORS & IGNORES
 
 IgnoreTokensInAST(AT & COLON & DOT & COMMENT_START & COMMENT_END)
 
@@ -49,6 +55,7 @@ gtk_doc = """
  * gst_pad_new_from_template:
  * @templ: the pad template to use
  * @name: (allow-none) (nullable): the name of the pad
+ * @...: variable arguments
  *
  * Creates a new pad with the given name from the given template.
  * If name is %NULL, a guaranteed unique name (across all pads)
@@ -85,7 +92,9 @@ annotation = \
 func_name = \
     SymbolsParser(IDENTIFIER) << OperatorParser(COLON)
 arg = \
-    OperatorParser(AT) << SymbolsParser(IDENTIFIER) << OperatorParser(COLON) << \
+    OperatorParser(AT) << \
+    (SymbolsParser(IDENTIFIER) | SymbolsParser(VARARGS)) << \
+    OperatorParser(COLON) << \
     Optional(ZeroOrMore(annotation) << OperatorParser(COLON)) << ignored_words
 args = ZeroOrMore(arg)
 returns = \
@@ -113,8 +122,8 @@ for single_doc in ast:
             print("func name:")
             token.pretty_print()
         elif token.check_parser(args):
-            print("args:")
             for arg in token:
+                print("arg:")
                 if arg.is_basic_token():
                     arg.pretty_print()
                     print("no arg annotations")
