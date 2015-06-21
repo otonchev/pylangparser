@@ -937,6 +937,9 @@ class ZeroOrMore(TokenParser):
         self.__parser = parser
 
     def __call__(self, tokens, pos):
+        ignored_result = None
+        last_not_ignored = None
+
         if pos >= len(tokens):
             return None
         results = None
@@ -944,8 +947,19 @@ class ZeroOrMore(TokenParser):
             result = self.__parser(tokens, pos)
             if not result:
                 break
-            result.add_parser_instance(self)
+
             pos = result.get_position()
+
+            if result.is_empty():
+                # this token should be ignored
+                ignored_result = result
+                if last_not_ignored:
+                    last_not_ignored.set_position(pos)
+                continue
+            last_not_ignored = result
+
+            result.add_parser_instance(self)
+
             if not results:
                 results = result
             else:
@@ -953,6 +967,8 @@ class ZeroOrMore(TokenParser):
                     results = results + (result,)
                 else:
                     results = (results, result)
+        if not results and ignored_result:
+            return ignored_result
         if results and isinstance(results, ParserResult):
             return results
         return ParserResult(results, pos, self)
@@ -971,6 +987,8 @@ class Repeat(TokenParser):
         self.__parser = parser
 
     def __call__(self, tokens, pos):
+        ignored_result = None
+        last_not_ignored = None
         if pos >= len(tokens):
             return None
         results = None
@@ -978,8 +996,19 @@ class Repeat(TokenParser):
             result = self.__parser(tokens, pos)
             if not result:
                 break
-            result.add_parser_instance(self)
+
             pos = result.get_position()
+
+            if result.is_empty():
+                # this token should be ignored
+                ignored_result = result
+                if last_not_ignored:
+                    last_not_ignored.set_position(pos)
+                continue
+            last_not_ignored = result
+
+            result.add_parser_instance(self)
+
             if not results:
                 results = result
             else:
@@ -988,6 +1017,8 @@ class Repeat(TokenParser):
                 else:
                     results = (results, result)
         if not results:
+            if ignored_result:
+                return ignored_result
             return None
         if isinstance(results, ParserResult):
             return results
