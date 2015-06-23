@@ -60,7 +60,7 @@ IGNORE_CHARS = Ignore(r'[ \n,.-]+')
 
 IGNORES = IGNORE_CHARS
 
-# order is important, first token that is matches will be considered
+# order is important, first token that matches will be considered
 TOKENS = FAT & QTYS & METRICS & IGNORES & INGREDIENT & RANDOM_WORD
 
 food_recipe = """
@@ -75,7 +75,7 @@ food_recipe = """
 
 """
 
-ingredient = \
+product = \
     SymbolsParser(ONION) | \
     SymbolsParser(ROAST) | \
     SymbolsParser(SOY_SAUCE) | \
@@ -98,7 +98,8 @@ qty = \
 
 fat = SymbolsParser(FAT)
 
-ingredient = qty << ZeroOrMore(measure) << Repeat(fat | ingredient | IgnoreResult(SymbolsParser(RANDOM_WORD)))
+ingredient = qty << ZeroOrMore(measure) << \
+    Repeat(fat | product | IgnoreResult(SymbolsParser(RANDOM_WORD)))
 
 recipe = ZeroOrMore(ingredient)
 
@@ -113,3 +114,16 @@ parser = AllTokensConsumed(recipe)
 ast = parser(tokens, 0)
 print("\nast:")
 ast.pretty_print()
+
+for group in ast:
+    if group.check_parser(ingredient):
+        print("\ningredient:")
+        for sub_group in group:
+            if sub_group.check_parser(qty):
+                print("qty: %s" % sub_group.get_token())
+            if sub_group.check_parser(measure):
+                print("measure: %s" % sub_group.get_token())
+            if sub_group.check_parser(product):
+                print("product: %s" % sub_group.get_token())
+            if sub_group.check_parser(fat):
+                print("fat level: %s" % sub_group.get_token())
