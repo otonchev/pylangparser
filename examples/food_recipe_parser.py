@@ -12,12 +12,12 @@ QTY = Symbols(r'\d+')
 QTY_HALF = Symbols(r'(\d+ ){0,1}1/2')
 QTYS = QTY_HALF & QTY
 
-ONION = Symbols(r'onion')
-ROAST = Symbols(r'roast')
-SOY_SAUCE = Symbols(r'soy sauce')
-STALK_CELERY = Symbols(r'stalk celery')
-WATER = Symbols(r'water')
-YOGURT = Symbols(r'yogurt')
+ONION = Symbols(r'onion', ignorecase=True)
+ROAST = Symbols(r'roast', ignorecase=True)
+SOY_SAUCE = Symbols(r'soy sauce', ignorecase=True)
+STALK_CELERY = Symbols(r'stalk celery', ignorecase=True)
+WATER = Symbols(r'water', ignorecase=True)
+YOGURT = Symbols(r'yogurt', ignorecase=True)
 
 FAT = Symbols(r'\d+%')
 
@@ -31,17 +31,17 @@ INGREDIENT = \
 
 RANDOM_WORD = Symbols(r'[a-zA-Z]+')
 
-LBS = Symbols(r'lbs')
-TABLESPOON = Symbols(r'tablespoon')
-TABLESPOONS = Symbols(r'tablespoons')
-TEASPOON = Symbols(r'teaspoon')
-TEASPOONS = Symbols(r'teaspoons')
-QUART = Symbols(r'quart')
-QUARTS = Symbols(r'quarts')
-DASH = Symbols(r'dash')
-DASHES = Symbols(r'dashes')
-CUP = Symbols(r'cup')
-CUPS = Symbols(r'cups')
+LBS = Symbols(r'lbs', ignorecase=True)
+TABLESPOON = Symbols(r'tablespoon', ignorecase=True)
+TABLESPOONS = Symbols(r'tablespoons', ignorecase=True)
+TEASPOON = Symbols(r'teaspoon', ignorecase=True)
+TEASPOONS = Symbols(r'teaspoons', ignorecase=True)
+QUART = Symbols(r'quart', ignorecase=True)
+QUARTS = Symbols(r'quarts', ignorecase=True)
+DASH = Symbols(r'dash', ignorecase=True)
+DASHES = Symbols(r'dashes', ignorecase=True)
+CUP = Symbols(r'cup', ignorecase=True)
+CUPS = Symbols(r'cups', ignorecase=True)
 
 METRICS = \
     LBS & \
@@ -70,8 +70,7 @@ food_recipe = """
 1 1/2 quarts water
 1 onion, chopped
 1 stalk celery, chopped
-2 tablespoons soy sauce
-1/2 cup 2% Greek yogurt
+2 tablespoons soy sauce 1/2 cup 2% Greek Yogurt
 
 """
 
