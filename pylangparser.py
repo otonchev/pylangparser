@@ -961,7 +961,7 @@ class ZeroOrMore(TokenParser):
             result.add_parser_instance(self)
 
             if not results:
-                results = result
+                results = (result,)
             else:
                 if isinstance(results, tuple):
                     results = results + (result,)
@@ -1010,7 +1010,7 @@ class Repeat(TokenParser):
             result.add_parser_instance(self)
 
             if not results:
-                results = result
+                results = (result,)
             else:
                 if isinstance(results, tuple):
                     results = results + (result,)
