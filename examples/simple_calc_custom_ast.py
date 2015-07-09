@@ -62,16 +62,11 @@ def update_arthm_expression(result):
 
     if len(token) == 3:
        # p = 1
-       # ('p', '=', '1')
+       # ('p', '=', '1') or ('p', '=', ('3', '+', '2'))
        (lo, op, ro) = token
+       if not ro.is_basic_token():
+           ro = update_arthm_expression(ro)
        token = (op, lo, ro)
-    else:
-       # p = 1 + (3 + 2)
-       # ('p', '=', '1', ('3', '+', '2'))
-       (lo1, op1, ro1, sub_token) = token
-       (op2, ro2) = sub_token.get_token()
-       sub_token.set_token((op2, ro1, ro2))
-       token = (op1, lo1, sub_token)
 
     result.set_token(token)
     return result
