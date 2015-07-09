@@ -179,7 +179,7 @@ char * func(int p, char t);
 
 int
 func2(const int p, char t) {
-  int l, q;
+  int l, q, zoro;
   char *f;
   unsigned short j;
 
@@ -471,11 +471,11 @@ array_declarator_tail = \
     OperatorParser(R_BRACKET)
 
 array_declarator = (SymbolsParser(IDENTIFIER) & OperatorParser(L_BRACKET) & \
-    Optional(SymbolsParser(INT_CONSTANT)) & OperatorParser(R_BRACKET) & \
+    Optional(SymbolsParser(INT_CONSTANT)) & OperatorParser(R_BRACKET) << \
         ZeroOrMore(array_declarator_tail)) | \
     (OperatorParser(L_PAR) & pointer & \
         OperatorParser(R_PAR) & OperatorParser(L_BRACKET) & \
-        Optional(SymbolsParser(INT_CONSTANT)) & OperatorParser(R_BRACKET) & \
+        Optional(SymbolsParser(INT_CONSTANT)) & OperatorParser(R_BRACKET) << \
         ZeroOrMore(array_declarator_tail))
 
 function_pointer_declarator = RecursiveParser()
@@ -546,10 +546,10 @@ additional_declarator_with_modifier = \
 # variable declaration
 #
 variable_declaration = \
-    (type_specifier & declarator_with_modifier & \
+    (type_specifier & declarator_with_modifier << \
         ZeroOrMore(additional_declarator_with_modifier) & \
         OperatorParser(SEMICOLON)) | \
-    (SymbolsParser(IDENTIFIER) & declarator_with_modifier & \
+    (SymbolsParser(IDENTIFIER) & declarator_with_modifier << \
         ZeroOrMore(additional_declarator_with_modifier) & \
         OperatorParser(SEMICOLON))
 
@@ -569,7 +569,7 @@ enumerator = \
 #
 enum_declaration = \
     KeywordParser(ENUM) & SymbolsParser(IDENTIFIER) & \
-    OperatorParser(L_BRACE) & enumerator & ZeroOrMore(OperatorParser(COMMA) & \
+    OperatorParser(L_BRACE) & enumerator << ZeroOrMore(OperatorParser(COMMA) & \
     enumerator) & OperatorParser(R_BRACE) & OperatorParser(SEMICOLON)
 
 #
@@ -585,10 +585,10 @@ array_function_declarator = \
 
 direct_function_declarator = \
     array_function_declarator | \
-    (SymbolsParser(IDENTIFIER) & OperatorParser(L_PAR) & \
+    (SymbolsParser(IDENTIFIER) & OperatorParser(L_PAR) << \
         ZeroOrMore(parameter_list) & OperatorParser(R_PAR)) | \
     (OperatorParser(L_PAR) & pointer_function & \
-        OperatorParser(R_PAR) & OperatorParser(L_PAR) & \
+        OperatorParser(R_PAR) & OperatorParser(L_PAR) << \
         ZeroOrMore(parameter_list) & OperatorParser(R_PAR))
 
 # notice the usage of the '+=' operator below
@@ -662,7 +662,7 @@ call_expression = \
 arg = call_expression | value | string_value
 
 arglist += \
-    arg & ZeroOrMore(OperatorParser(COMMA) & arg)
+    arg << ZeroOrMore(OperatorParser(COMMA) & arg)
 
 simple_expression = \
     varname | \
@@ -681,7 +681,7 @@ main_sub_conditional_expression = \
     sub_conditional_expression
 
 conditional_expression = \
-    main_sub_conditional_expression & ZeroOrMore(compop & \
+    main_sub_conditional_expression << ZeroOrMore(compop & \
         main_sub_conditional_expression)
 
 binary_expression = \
@@ -946,8 +946,11 @@ def perform_call_search(group):
 
             if not func_args.check_parser(arglist):
                 raise TypeError("internal error, func_args not arglist")
-            for arg in func_args:
-                print("arg: %s" % arg)
+            if func_args.is_basic_token():
+                print("arg: %s" % func_args)
+            else:
+                for arg in func_args:
+                    print("arg: %s" % arg)
 
 #
 # print all function calls within each function
