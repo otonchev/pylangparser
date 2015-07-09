@@ -695,6 +695,40 @@ class MergeManyParsers(TokenParser):
     The result will be ParserResult containing tuple of tokens:
 
         ParserResult(token, token, token)
+
+    A good example when this parser is to be used is when parsing variable
+    declarations in C:
+
+        int a, b, c, d;
+
+    The grammar may look like:
+
+    additional_declarator_with_modifier = \
+            OperatorParser(COMMA) & declarator_with_modifier
+
+    variable_declaration = \
+        (type_specifier & declarator_with_modifier << \
+            ZeroOrMore(additional_declarator_with_modifier) & \
+            OperatorParser(SEMICOLON))
+
+    or:
+
+    additional_declarator_with_modifier = \
+            OperatorParser(COMMA) & declarator_with_modifier
+
+    variable_declaration = \
+        (type_specifier & declarator_with_modifier & \
+            ZeroOrMore(additional_declarator_with_modifier) & \
+            OperatorParser(SEMICOLON))
+
+    And the AST in bothe cases:
+
+    ['int'], [['a'], ['b'], ['c'], ['d']]
+
+    and
+
+    ['int'], [['a'], [['b'], ['c'], ['d']]]
+
     """
 
     def __init__(self, first, second):
@@ -758,6 +792,9 @@ class CombineManyParsers(TokenParser):
 
         ParserResult(ParserResult(token), ParserResult(token), \
             ParserResult(token))
+
+    Read about MergeManyParsers(<<) to understand the difference between
+    AND(&) and LSHIFT(<<).
     """
 
     def __init__(self, first, second):
