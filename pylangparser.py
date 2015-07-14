@@ -765,13 +765,19 @@ class MergeManyParsers(TokenParser):
             else:
                 result = result + (res,)
 
-        if len(result) == 1:
-            # only one result, rest of results were ignored, skip unnecessary
-            # packing
-            (result,) = result
-            result.set_position(pos)
-            result.add_parser_instance(self)
-            return result
+        # removing for now, thus we are more consistent and parsing is perhaps
+        # easier that way
+        #
+        #if len(result) == 1:
+        #    # only one result, rest of results were ignored, skip unnecessary
+        #    # packing
+        #    (result,) = result
+        #    result.set_position(pos)
+        #    result.add_parser_instance(self)
+        #    return result
+
+        if len(result) == 0:
+            result = None
 
         return ParserResult(result, pos, self)
 
@@ -824,13 +830,19 @@ class CombineManyParsers(TokenParser):
 
             result = result + (res,)
 
-        if len(result) == 1:
-            # only one result, rest of results were ignored, skip unnecessary
-            # packing
-            (result,) = result
-            result.set_position(pos)
-            result.add_parser_instance(self)
-            return result
+        # removing for now, thus we are more consistent and parsing is perhaps
+        # easier that way
+        #
+        #if len(result) == 1:
+        #    # only one result, rest of results were ignored, skip unnecessary
+        #    # packing
+        #    (result,) = result
+        #    result.set_position(pos)
+        #    result.add_parser_instance(self)
+        #    return result
+
+        if len(result) == 0:
+            result = None
 
         return ParserResult(result, pos, self)
 
