@@ -10,6 +10,7 @@ sys.path.append("..")
 
 from pylangparser import *
 
+TYPE = Keyword(r'\(type [A-Za-z\.]+\)')
 ALLOW_NONE = Keyword(r'\(allow-none\)')
 FLOATING = Keyword(r'\(transfer floating\)')
 FULL = Keyword(r'\(transfer full\)')
@@ -19,7 +20,7 @@ NULLABLE = Keyword(r'\(nullable\)')
 OUT = Keyword(r'\(out\)')
 RETURNS = Keyword(r'Returns')
 
-KEYWORDS = ALLOW_NONE & FULL & NONE & CONTAINER & FLOATING & NULLABLE & \
+KEYWORDS = TYPE & ALLOW_NONE & FULL & NONE & CONTAINER & FLOATING & NULLABLE & \
     OUT & RETURNS
 
 COLON = Operator(r':')
@@ -52,6 +53,15 @@ IgnoreTokensInAST(AT & COLON & DOT & COMMENT_START & COMMENT_END)
 gtk_doc = """
 
 /**
+ * gst_element_get_parent:
+ * @elem: a #GstElement to get the parent of.
+ *
+ * Get the parent of an element.
+ *
+ * Returns: (transfer full): the parent of an element.
+ */
+
+/**
  * gst_pad_new_from_template:
  * @templ: the pad template to use
  * @name: (allow-none) (nullable): the name of the pad
@@ -77,6 +87,18 @@ gtk_doc = """
  * This function makes a copy of the name so you can safely free the name.
  */
 
+/**
+ * gst_object_unref:
+ * @object: (type Gst.Object): a #GstObject to unreference
+ *
+ * Decrements the reference count on @object.  If reference count hits
+ * zero, destroy @object. This function does not take the lock
+ * on @object as it relies on atomic refcounting.
+ *
+ * The unref method should never be called with the LOCK held since
+ * this might deadlock the dispose function.
+ */
+
 """
 
 # extract tokens
@@ -84,27 +106,27 @@ lexer = Lexer(TOKENS)
 tokens = lexer.parseTokens(gtk_doc, False)
 print(tokens)
 
-ignored_words = \
-    IgnoreResult(ZeroOrMore(SymbolsParser(WORD) | SymbolsParser(IDENTIFIER)))
+ignored_word = \
+    IgnoreResult(SymbolsParser(WORD) | SymbolsParser(IDENTIFIER) | \
+    (OperatorParser(AT) & SymbolsParser(IDENTIFIER)))
 annotation = \
     KeywordParser(ALLOW_NONE) | KeywordParser(FLOATING) | \
-    KeywordParser(NULLABLE)
-func_name = \
-    SymbolsParser(IDENTIFIER) << OperatorParser(COLON)
+    KeywordParser(NULLABLE) | KeywordParser(FULL) | KeywordParser(TYPE)
+func_name = SymbolsParser(IDENTIFIER)
+func = func_name & OperatorParser(COLON)
+returns = \
+    KeywordParser(RETURNS) << OperatorParser(COLON) << \
+    Optional(ZeroOrMore(annotation) << OperatorParser(COLON))
 arg = \
     OperatorParser(AT) << \
     (SymbolsParser(IDENTIFIER) | SymbolsParser(VARARGS)) << \
     OperatorParser(COLON) << \
-    Optional(ZeroOrMore(annotation) << OperatorParser(COLON)) << ignored_words
-args = ZeroOrMore(arg)
-returns = \
-    KeywordParser(RETURNS) << OperatorParser(COLON) << \
-    Optional(ZeroOrMore(annotation) << OperatorParser(COLON)) << ignored_words
+    Optional(ZeroOrMore(annotation) << OperatorParser(COLON))
+func_desc = ZeroOrMore(arg | returns | ignored_word)
 description = \
-    SymbolsParser(COMMENT_START) & \
-    func_name & \
-    args & \
-    Optional(returns) & \
+    SymbolsParser(COMMENT_START) << \
+    func << \
+    func_desc << \
     SymbolsParser(COMMENT_END)
 
 parser = AllTokensConsumed(ZeroOrMore(description))
@@ -116,30 +138,24 @@ ast.pretty_print()
 
 # iterating AST
 print("\nparsing...")
-for single_doc in ast:
-    for token in single_doc:
-        if token.check_parser(func_name):
+
+for function_block in ast:
+    for function_desc in function_block:
+        if function_desc.check_parser(func_name):
             print("func name:")
-            token.pretty_print()
-        elif token.check_parser(args):
-            for arg in token:
-                print("arg:")
-                if arg.is_basic_token():
-                    arg.pretty_print()
-                    print("no arg annotations")
-                else:
-                    index = 0
-                    for carg in arg:
-                        if index == 0:
-                            carg.pretty_print()
-                            print("arg annotations:")
-                        else:
-                            carg.pretty_print()
-                        index += 1
-        elif token.check_parser(returns):
+            print function_desc.get_token()
+        if function_desc.check_parser(arg):
+            print("arg:")
+            index = 0
+            for func_arg in function_desc:
+                if index == 1:
+                    print("annotations:")
+                print func_arg.get_token()
+                index += 1
+        if function_desc.check_parser(returns):
             print("returns:")
             index = 0
-            for ret in token:
+            for func_ret in function_desc:
                 if index > 0:
-                    ret.pretty_print()
+                    print func_ret.get_token()
                 index += 1
